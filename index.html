@@ -1,0 +1,828 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>製本加工代 見積計算ツール（試作 v0.5）</title>
+<style>
+  :root{
+    --blue:#2f5496; --blue-light:#e8eef7; --border:#d8dee6; --bg:#f5f6f8;
+    --text:#222; --muted:#6b7280; --warn-bg:#fff4e5; --warn-border:#f0b429;
+    --danger:#b3261e;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:"Hiragino Sans","Yu Gothic",-apple-system,BlinkMacSystemFont,sans-serif;background:var(--bg);color:var(--text);}
+  header{background:var(--blue);color:#fff;padding:16px 18px;}
+  header h1{margin:0;font-size:1.15rem;}
+  header p{margin:6px 0 0;font-size:0.78rem;opacity:.9;}
+  main{max-width:720px;margin:0 auto;padding:12px 12px 80px;}
+  .notice{background:var(--warn-bg);border:1px solid var(--warn-border);border-radius:8px;padding:10px 12px;font-size:0.8rem;margin:12px 0;line-height:1.5;}
+  section.card{background:#fff;border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:14px;}
+  section.card h2{font-size:1rem;margin:0 0 10px;color:var(--blue);border-bottom:2px solid var(--blue-light);padding-bottom:6px;}
+  section.card h3{font-size:0.88rem;margin:14px 0 6px;color:#444;}
+  .row{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:10px;}
+  .field{flex:1 1 140px;display:flex;flex-direction:column;gap:4px;}
+  .field.full{flex-basis:100%;}
+  label{font-size:0.75rem;color:var(--muted);font-weight:600;}
+  input[type=text],input[type=number],select{
+    padding:9px 8px;border:1px solid var(--border);border-radius:6px;font-size:0.92rem;background:#fff;width:100%;
+  }
+  input[type=checkbox]{width:16px;height:16px;}
+  .checkline{display:flex;align-items:center;gap:8px;font-size:0.85rem;padding:4px 0;}
+  .radiogroup{display:flex;gap:14px;flex-wrap:wrap;}
+  .radiogroup label{display:flex;align-items:center;gap:6px;font-size:0.85rem;color:var(--text);font-weight:500;}
+  .hint{font-size:0.72rem;color:var(--muted);margin-top:-2px;}
+  .comp-row{border:1px dashed var(--border);border-radius:8px;padding:10px;margin-bottom:8px;position:relative;background:#fafbfc;}
+  .comp-row .del{position:absolute;top:6px;right:8px;background:none;border:none;color:var(--danger);font-size:0.75rem;cursor:pointer;}
+  button.add{background:var(--blue-light);color:var(--blue);border:1px solid var(--blue);border-radius:6px;padding:8px 12px;font-size:0.82rem;cursor:pointer;width:100%;}
+  button.calc{background:var(--blue);color:#fff;border:none;border-radius:8px;padding:14px;font-size:1rem;font-weight:700;width:100%;cursor:pointer;margin-top:6px;}
+  button.calc:active{opacity:.85;}
+  .addon-toggle{display:flex;justify-content:space-between;align-items:center;cursor:pointer;}
+  .addon-body{display:none;margin-top:10px;}
+  .addon-body.open{display:block;}
+  table.result{width:100%;border-collapse:collapse;font-size:0.82rem;margin-top:8px;}
+  table.result th,table.result td{border-bottom:1px solid var(--border);padding:6px 4px;text-align:right;}
+  table.result th:first-child,table.result td:first-child{text-align:left;}
+  table.result thead th{background:var(--blue-light);color:var(--blue);}
+  .sub-total-row td{font-weight:700;background:#f2f5fa;}
+  .grand-total{font-size:1.3rem;font-weight:800;color:var(--blue);text-align:right;margin-top:10px;padding-top:10px;border-top:2px solid var(--blue);}
+  .grand-total small{display:block;font-size:0.7rem;color:var(--muted);font-weight:500;}
+  .error{color:var(--danger);font-size:0.82rem;padding:8px;background:#fdecea;border-radius:6px;}
+  .tag{display:inline-block;background:var(--blue-light);color:var(--blue);font-size:0.68rem;padding:2px 7px;border-radius:10px;margin-left:6px;font-weight:700;}
+  footer{max-width:720px;margin:0 auto;padding:0 12px 30px;font-size:0.7rem;color:var(--muted);line-height:1.6;}
+  @media (min-width:640px){ .field{flex:1 1 30%;} }
+
+  #printQuote{display:none;}
+  .pq-header{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:3px double #222;padding-bottom:10px;margin-bottom:18px;}
+  .pq-title{font-size:1.6rem;font-weight:800;letter-spacing:.3em;}
+  .pq-meta{font-size:0.85rem;text-align:right;line-height:1.7;}
+  .pq-to{font-size:1.2rem;font-weight:700;border-bottom:1px solid #222;padding-bottom:6px;margin-bottom:10px;}
+  .pq-subject{font-size:0.95rem;margin-bottom:14px;}
+  table.pq-spec{width:100%;border-collapse:collapse;font-size:0.85rem;margin-bottom:16px;}
+  table.pq-spec td{border:1px solid #999;padding:6px 8px;}
+  table.pq-spec td.pq-k{background:#f2f2f2;width:30%;font-weight:600;}
+  .pq-amount-box{border:2px solid #222;padding:16px;text-align:center;margin-bottom:18px;}
+  .pq-amount-label{font-size:0.9rem;font-weight:600;margin-bottom:6px;}
+  .pq-amount{font-size:2rem;font-weight:800;}
+  .pq-amount-note{font-size:0.72rem;color:#555;margin-top:6px;}
+  .pq-detail-title{font-size:0.85rem;font-weight:700;margin:10px 0 6px;}
+  #pqDetailBody table{width:100%;border-collapse:collapse;font-size:0.78rem;margin-bottom:10px;}
+  #pqDetailBody th,#pqDetailBody td{border:1px solid #ccc;padding:4px 6px;text-align:right;}
+  #pqDetailBody th:first-child,#pqDetailBody td:first-child{text-align:left;}
+  .pq-notes{font-size:0.75rem;color:#333;line-height:1.8;margin-top:10px;}
+  .pq-issuer{margin-top:30px;text-align:right;font-size:0.9rem;font-weight:600;}
+
+  @media print{
+    header, main, footer{display:none !important;}
+    #printQuote{display:block;padding:0;}
+    @page{margin:16mm;}
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>製本加工代 見積計算ツール <span class="tag">試作 v0.5</span></h1>
+  <p>加工単価マスタ（各ファイルの【見積原価】＝新（2026.07.01）欄に基づく）による加工代の概算計算。用紙代・印刷代・社内管理費は含みません。</p>
+</header>
+<main>
+
+  <div class="notice">
+    本ツールは社内検討用の試作品です。算出額は加工代（断裁・折り・製本綴じ・トムソン・表面加工）の概算であり、実際の外注見積とは差異が生じます。判型・印刷方式が混在する案件や、観音折・スポットプレス等マスタが未整備の加工は正確に算出できません（詳細は設計書10章を参照）。
+  </div>
+  <div class="notice">
+    v0.3更新：加工単価マスタ11ファイルには「旧」単価と「新（2026.07.01）・見積原価」単価の2系統があり、v0.2まではこのうち「旧」側の数値を誤って参照していました。v0.3では全カテゴリを「新（2026.07.01）・見積原価」側に修正しています（例：A4・輪転中綴じ100,000ランクの基本セット料は10,000円→12,000円、16P単価は0.43円→0.52円等）。2026年7月の実案件（積水ハウス様アイテムガイド第5弾／A4輪転中綴じ61,700部）の社内見積計算書と照合したところ、修正後のマスタ値×社内管理費10%は実際の加工費原価（260,617円）とほぼ一致（本ツール試算 約261,600円）しました。
+  </div>
+
+  <section class="card">
+    <h2>1. 案件情報</h2>
+    <div class="row">
+      <div class="field"><label>得意先名（PDF見積書に印字）</label><input type="text" id="customerName" placeholder="例：〇〇大学"></div>
+      <div class="field"><label>件名・品名</label><input type="text" id="jobName" placeholder="例：〇〇大学 案内冊子"></div>
+      <div class="field"><label>部数 *</label><input type="number" id="jobQty" min="1" step="1" placeholder="例：15000"></div>
+    </div>
+    <div class="row">
+      <div class="field"><label>見積番号（PDF見積書に印字）</label><input type="text" id="quoteNo" placeholder="自動採番（編集可）"></div>
+      <div class="field"><label>発行日</label><input type="date" id="issueDate"></div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>2. 仕様タイプ</h2>
+    <div class="radiogroup">
+      <label><input type="radio" name="jobType" value="booklet" checked> 冊子（ページ物・製本あり）</label>
+      <label><input type="radio" name="jobType" value="flat"> ペラ物・折り物（綴じなし）</label>
+    </div>
+  </section>
+
+  <section class="card" id="bookletSection">
+    <h2>3. 冊子仕様</h2>
+    <div class="row">
+      <div class="field">
+        <label>仕上りサイズ区分 *</label>
+        <select id="bkSize">
+          <option value="B6・A5">B6・A5</option>
+          <option value="B5">B5</option>
+          <option value="A4" selected>A4</option>
+          <option value="B4">B4</option>
+        </select>
+        <div class="hint">製本単価マスタはB6・A5～B4のみ対応。A3以上・B3以上は非対応です。</div>
+      </div>
+      <div class="field">
+        <label>綴じ方式 *</label>
+        <select id="bkBind">
+          <option value="saddle">中綴じ</option>
+          <option value="perfect" selected>無線綴じ</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>印刷方式（綴じ工程の適用マスタ） *</label>
+        <select id="bkPress">
+          <option value="sheet" selected>枚葉</option>
+          <option value="web">輪転</option>
+        </select>
+        <div class="hint">表紙・本文で印刷方式が異なる場合、綴じ工程は主となる方式を選択してください（要確認事項）。</div>
+      </div>
+    </div>
+
+    <h3>台構成（表紙・本文などページ束ごとに追加）</h3>
+    <div id="compList"></div>
+    <button type="button" class="add" id="addComp">＋ 台を追加</button>
+
+    <h3>綴じオプション</h3>
+    <div class="row">
+      <div class="field" id="endpaperField">
+        <label class="checkline"><input type="checkbox" id="bkEndpaper"> 見返しあり（無線綴じのみ）</label>
+      </div>
+      <div class="field">
+        <label class="checkline"><input type="checkbox" id="bkPunch"> 穴明けあり</label>
+      </div>
+      <div class="field" id="punchBandField" style="display:none">
+        <label>穴明け台数帯</label>
+        <select id="bkPunchBand">
+          <option value="1_2">1～2台</option>
+          <option value="3_4">3～4台</option>
+          <option value="5_6">5～6台</option>
+          <option value="7up">7台以上</option>
+        </select>
+      </div>
+    </div>
+  </section>
+
+  <section class="card" id="flatSection" style="display:none">
+    <h2>3. ペラ物・折り物仕様</h2>
+    <div class="row">
+      <div class="field">
+        <label>仕上りサイズ区分（断裁マスタ） *</label>
+        <select id="flSize"></select>
+      </div>
+      <div class="field">
+        <label class="checkline"><input type="checkbox" id="flThick"> 四六判換算135kg以上の用紙</label>
+        <div class="hint">断裁単価が30%増になります。</div>
+      </div>
+    </div>
+    <h3>折り</h3>
+    <div class="row">
+      <div class="field">
+        <label>折り種類</label>
+        <select id="flFoldType">
+          <option value="none">折りなし</option>
+          <option value="two">2つ折</option>
+          <option value="three">3つ折</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>折りマスタの判型区分</label>
+        <select id="flFoldSize"></select>
+        <div class="hint">2つ折：B4/A4/B5/A5以下　3つ折：A4/B5/A5・B6以下/100×210</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>4. 特殊加工オプション</h2>
+
+    <div class="addon-toggle" id="toggleThomson"><h3 style="margin:0">トムソン加工</h3><input type="checkbox" id="enableThomson"></div>
+    <div class="addon-body" id="bodyThomson">
+      <div class="row">
+        <div class="field">
+          <label>種類</label>
+          <select id="thType"><option value="punch">トムソン抜き</option><option value="mishin">トムソン（ミシン）</option></select>
+        </div>
+        <div class="field">
+          <label>印刷用紙（版）サイズ</label>
+          <select id="thSize"></select>
+          <div class="hint">サイズは仕上りサイズでなく、面付け後の印刷用紙サイズで選択してください。</div>
+        </div>
+        <div class="field">
+          <label>印刷数量（枚）</label>
+          <input type="number" id="thQty" placeholder="部数と異なる場合は入力">
+        </div>
+        <div class="field">
+          <label>丁数（基本2丁）</label>
+          <input type="number" id="thSets" value="2" min="1">
+          <div class="hint">2丁を超える分は1丁あたり450円を準備代に加算（簡易計算）。</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="addon-toggle" id="toggleSurface" style="margin-top:14px"><h3 style="margin:0">表面加工（PP貼り・プレスコート）</h3><input type="checkbox" id="enableSurface"></div>
+    <div class="addon-body" id="bodySurface">
+      <div class="row">
+        <div class="field">
+          <label>種類</label>
+          <select id="sfType">
+            <option value="gloss">PP貼り（グロス）</option>
+            <option value="matte">マットPP貼り</option>
+            <option value="press">プレスコート（ビニール引き）</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>印刷用紙（版）サイズ</label>
+          <select id="sfSize"></select>
+          <div class="hint">サイズは印刷用紙サイズ基準です。</div>
+        </div>
+        <div class="field">
+          <label>印刷数量（枚）</label>
+          <input type="number" id="sfQty" placeholder="部数と異なる場合は入力">
+        </div>
+        <div class="field" id="sfDoubleField">
+          <label class="checkline"><input type="checkbox" id="sfDouble"> 両面加工</label>
+        </div>
+        <div class="field" id="sfThinField" style="display:none">
+          <label class="checkline"><input type="checkbox" id="sfThin"> 四六判換算180kg以下（プレスコートのみ35%増）</label>
+        </div>
+      </div>
+    </div>
+
+    <div class="addon-toggle" id="toggleCutting" style="margin-top:14px"><h3 style="margin:0">断裁（冊子仕様に追加で断裁費が必要な場合）</h3><input type="checkbox" id="enableCutting"></div>
+    <div class="addon-body" id="bodyCutting">
+      <div class="row">
+        <div class="field">
+          <label>仕上りサイズ区分</label>
+          <select id="ctSize"></select>
+        </div>
+        <div class="field">
+          <label>枚数</label>
+          <input type="number" id="ctQty" placeholder="部数と異なる場合は入力">
+        </div>
+        <div class="field">
+          <label class="checkline"><input type="checkbox" id="ctThick"> 四六判換算135kg以上（30%増）</label>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>5. 社内管理費</h2>
+    <div class="row">
+      <div class="field">
+        <label class="checkline"><input type="checkbox" id="enableMargin" checked> 社内管理費を加算する</label>
+        <div class="hint">業務推進課確認済み：加工代原価に対して10%を加算（2026年8月確認）。用紙代・印刷代は含まれないため、営業提出額は別途調整が必要です。</div>
+      </div>
+      <div class="field">
+        <label>管理費率（%）</label>
+        <input type="number" id="marginRate" value="10" min="0" step="0.5">
+      </div>
+    </div>
+  </section>
+
+  <button class="calc" id="calcBtn">加工代を計算する</button>
+
+  <section class="card" id="resultSection" style="display:none">
+    <h2>計算結果</h2>
+    <div id="resultBody"></div>
+    <div id="pdfArea" style="display:none;margin-top:14px;padding-top:14px;border-top:1px dashed var(--border)">
+      <label class="checkline"><input type="checkbox" id="pdfIncludeDetail"> PDF見積書に加工代の内訳明細も含める（社内共有用。通常は付けません）</label>
+      <button type="button" class="add" id="makePdfBtn" style="margin-top:8px;border-color:var(--blue);">PDF見積書を作成する</button>
+      <div class="hint">得意先名・件名・見積番号が未入力の場合は空欄のまま印字されます。ボタンを押すと印刷（PDF保存）画面が開きます。</div>
+    </div>
+
+    <div id="mailArea" style="display:none;margin-top:14px;padding-top:14px;border-top:1px dashed var(--border)">
+      <h3 style="margin:0 0 8px">発注先へ仕様を送る</h3>
+      <div class="hint" style="margin-bottom:8px">上記の仕様（金額は含みません）をメール本文として組み立てます。発注先ごとにボタンを押すと、宛先入りのOutlook作成画面が開きます。</div>
+      <div id="supplierList" style="display:flex;flex-direction:column;gap:8px"></div>
+      <div class="hint" style="margin-top:8px">
+        ボタンを押すと、宛先・件名・本文を入力済みのOutlook on the Web作成画面が新しいタブで開きます。内容を確認してから送信してください。発注先を増やす場合はHTML内の <code>SUPPLIERS</code> 配列にブロックを追加してください。
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<div id="printQuote">
+  <div class="pq-header">
+    <div class="pq-title">御 見 積 書</div>
+    <div class="pq-meta">
+      <div>見積番号：<span id="pqNo"></span></div>
+      <div>発行日：<span id="pqDate"></span></div>
+    </div>
+  </div>
+  <div class="pq-to"><span id="pqCustomer"></span> 御中</div>
+  <div class="pq-subject">件名：<span id="pqSubject"></span></div>
+  <table class="pq-spec">
+    <tbody id="pqSpecBody"></tbody>
+  </table>
+  <div class="pq-amount-box">
+    <div class="pq-amount-label" id="pqAmountLabel">御見積金額</div>
+    <div class="pq-amount" id="pqAmount"></div>
+    <div class="pq-amount-note" id="pqAmountNote"></div>
+  </div>
+  <div id="pqDetailWrap" style="display:none">
+    <div class="pq-detail-title">（参考）加工代内訳</div>
+    <div id="pqDetailBody"></div>
+  </div>
+  <div class="pq-notes">
+    <div>※本見積は製本加工代の概算であり、用紙代・印刷代・運賃等は含みません。</div>
+    <div>※本見積の有効期限は発行日より30日間です。</div>
+    <div>※判型・数量帯によりマスタ未整備の場合があり、正式な金額は別途ご確認ください。</div>
+  </div>
+  <div class="pq-issuer">富士精版印刷株式会社　業務推進課</div>
+</div>
+<footer>
+  対象：断裁／折り（2つ折・3つ折）／製本綴じ（枚葉・輪転×中綴じ・無線綴じ）／トムソン／表面加工（PP貼り・プレスコート）。<br>
+  対象外：用紙代・印刷代・社内管理費・運賃・観音折／特殊折／スポットプレス（マスタ未整備）。<br>
+  データ出典：加工単価フォルダ 見積原価マスタ（各ファイルの【見積原価】＝新（2026.07.01）欄、2026-07版）。詳細は「製本見積アプリ化_設計書_v0.3.docx」を参照してください。<br>
+  v0.4更新：計算結果からPDF見積書（ブラウザの印刷機能でPDF保存）を作成できるようになりました。標準では社内管理費込みの提出額のみを印字し、内訳明細はチェックボックスで任意表示に切り替えられます。<br>
+  v0.5更新：PDF見積書を印刷したときに白紙ページが続けて出力される不具合を修正しました（印刷時の非表示処理をvisibility指定からdisplay指定に変更）。<br>
+  v0.3で判明した既知の限界：マスタの最小数量帯を下回る発注（輪転無線綴じ30,000部未満、輪転中綴じ50,000部未満 等）は最小ランクの単価で代用しており精度が低い場合があります。観音折（33番マスタ）は単価未入力のため引き続き対象外です。
+</footer>
+
+<script>
+const MASTER = {"cutting":{"A全":[{"rank_min":1000,"set":3600,"unit":3.6},{"rank_min":2000,"set":3600,"unit":3.36},{"rank_min":3000,"set":3600,"unit":3.12},{"rank_min":5000,"set":3600,"unit":3},{"rank_min":10000,"set":3600,"unit":2.88},{"rank_min":20000,"set":3600,"unit":1.7},{"rank_min":30000,"set":3600,"unit":1.66},{"rank_min":50000,"set":3600,"unit":1.58},{"rank_min":100000,"set":3600,"unit":1.37},{"rank_min":100001,"set":3600,"unit":1.36}],"A2":[{"rank_min":1000,"set":3600,"unit":2.64},{"rank_min":2000,"set":3600,"unit":2.4},{"rank_min":3000,"set":3600,"unit":2.16},{"rank_min":5000,"set":3600,"unit":1.92},{"rank_min":10000,"set":3600,"unit":1.68},{"rank_min":20000,"set":3600,"unit":0.9},{"rank_min":30000,"set":3600,"unit":0.86},{"rank_min":50000,"set":3600,"unit":0.72},{"rank_min":100000,"set":3600,"unit":0.67},{"rank_min":100001,"set":3600,"unit":0.66}],"A3":[{"rank_min":1000,"set":3600,"unit":1.92},{"rank_min":2000,"set":3600,"unit":1.56},{"rank_min":3000,"set":3600,"unit":1.2},{"rank_min":5000,"set":3600,"unit":1.04},{"rank_min":10000,"set":3600,"unit":0.84},{"rank_min":20000,"set":3600,"unit":0.5},{"rank_min":30000,"set":3600,"unit":0.43},{"rank_min":50000,"set":3600,"unit":0.38},{"rank_min":100000,"set":3600,"unit":0.36},{"rank_min":100001,"set":3600,"unit":0.35}],"A4":[{"rank_min":1000,"set":3000,"unit":1.2},{"rank_min":2000,"set":3000,"unit":1.02},{"rank_min":3000,"set":3000,"unit":0.84},{"rank_min":5000,"set":3000,"unit":0.68},{"rank_min":10000,"set":3000,"unit":0.48},{"rank_min":20000,"set":3000,"unit":0.3},{"rank_min":30000,"set":3000,"unit":0.26},{"rank_min":50000,"set":3000,"unit":0.23},{"rank_min":100000,"set":3000,"unit":0.2},{"rank_min":100001,"set":3000,"unit":0.17}],"A5以下・B6以下":[{"rank_min":1000,"set":3000,"unit":0.96},{"rank_min":2000,"set":3000,"unit":0.84},{"rank_min":3000,"set":3000,"unit":0.72},{"rank_min":5000,"set":3000,"unit":0.58},{"rank_min":10000,"set":3000,"unit":0.36},{"rank_min":20000,"set":3000,"unit":0.2},{"rank_min":30000,"set":3000,"unit":0.19},{"rank_min":50000,"set":3000,"unit":0.16},{"rank_min":100000,"set":3000,"unit":0.14},{"rank_min":100001,"set":3000,"unit":0.13}],"B全":[{"rank_min":1000,"set":3600,"unit":4.8},{"rank_min":2000,"set":3600,"unit":4.2},{"rank_min":3000,"set":3600,"unit":3.8},{"rank_min":5000,"set":3600,"unit":4},{"rank_min":10000,"set":3600,"unit":4.1},{"rank_min":20000,"set":3600,"unit":2.4},{"rank_min":30000,"set":3600,"unit":2.4},{"rank_min":50000,"set":3600,"unit":2.4},{"rank_min":100000,"set":3600,"unit":2.4},{"rank_min":100001,"set":3600,"unit":2.4}],"B2":[{"rank_min":1000,"set":3600,"unit":3.1},{"rank_min":2000,"set":3600,"unit":2.9},{"rank_min":3000,"set":3600,"unit":2.6},{"rank_min":5000,"set":3600,"unit":2.4},{"rank_min":10000,"set":3600,"unit":1.9},{"rank_min":20000,"set":3600,"unit":1.1},{"rank_min":30000,"set":3600,"unit":1},{"rank_min":50000,"set":3600,"unit":0.9},{"rank_min":100000,"set":3600,"unit":0.8},{"rank_min":100001,"set":3600,"unit":0.8}],"B3":[{"rank_min":1000,"set":3000,"unit":2.6},{"rank_min":2000,"set":3000,"unit":2.5},{"rank_min":3000,"set":3000,"unit":2.4},{"rank_min":5000,"set":3000,"unit":2.2},{"rank_min":10000,"set":3000,"unit":1.7},{"rank_min":20000,"set":3000,"unit":0.9},{"rank_min":30000,"set":3000,"unit":0.7},{"rank_min":50000,"set":3000,"unit":0.6},{"rank_min":100000,"set":3000,"unit":0.5},{"rank_min":100001,"set":3000,"unit":0.4}],"B4":[{"rank_min":1000,"set":3000,"unit":1.9},{"rank_min":2000,"set":3000,"unit":1.6},{"rank_min":3000,"set":3000,"unit":1.3},{"rank_min":5000,"set":3000,"unit":1.1},{"rank_min":10000,"set":3000,"unit":0.6},{"rank_min":20000,"set":3000,"unit":0.4},{"rank_min":30000,"set":3000,"unit":0.3},{"rank_min":50000,"set":3000,"unit":0.26},{"rank_min":100000,"set":3000,"unit":0.22},{"rank_min":100001,"set":3000,"unit":0.19}],"B5":[{"rank_min":1000,"set":2880,"unit":1.2},{"rank_min":2000,"set":2880,"unit":1.2},{"rank_min":3000,"set":2880,"unit":1.1},{"rank_min":5000,"set":2880,"unit":0.8},{"rank_min":10000,"set":2880,"unit":0.5},{"rank_min":20000,"set":2880,"unit":0.26},{"rank_min":30000,"set":2880,"unit":0.22},{"rank_min":50000,"set":2880,"unit":0.17},{"rank_min":100000,"set":2880,"unit":0.14},{"rank_min":100001,"set":2880,"unit":0.13}]},"fold":{"twoFold":{"B4":[{"rank_min":1000,"set":3600,"unit":4.08},{"rank_min":2000,"set":3600,"unit":3.6},{"rank_min":3000,"set":3600,"unit":2.88},{"rank_min":4000,"set":3600,"unit":2.64},{"rank_min":5000,"set":3600,"unit":2.16},{"rank_min":10000,"set":3600,"unit":1.88},{"rank_min":20000,"set":3600,"unit":1.08},{"rank_min":30000,"set":3600,"unit":1.01},{"rank_min":50000,"set":3600,"unit":0.94},{"rank_min":100000,"set":3600,"unit":0.86},{"rank_min":200000,"set":3600,"unit":0.82},{"rank_min":500000,"set":3600,"unit":0.8},{"rank_min":500001,"set":3600,"unit":0.79}],"A4":[{"rank_min":1000,"set":3600,"unit":3.6},{"rank_min":2000,"set":3600,"unit":2.88},{"rank_min":3000,"set":3600,"unit":1.92},{"rank_min":4000,"set":3600,"unit":1.8},{"rank_min":5000,"set":3600,"unit":1.68},{"rank_min":10000,"set":3600,"unit":1.4},{"rank_min":20000,"set":3600,"unit":0.8},{"rank_min":30000,"set":3600,"unit":0.7},{"rank_min":50000,"set":3600,"unit":0.6},{"rank_min":100000,"set":3600,"unit":0.6},{"rank_min":200000,"set":3600,"unit":0.6},{"rank_min":500000,"set":3600,"unit":0.5},{"rank_min":500001,"set":3600,"unit":0.5}],"B5":[{"rank_min":1000,"set":3600,"unit":3.6},{"rank_min":2000,"set":3600,"unit":2.88},{"rank_min":3000,"set":3600,"unit":1.92},{"rank_min":4000,"set":3600,"unit":1.8},{"rank_min":5000,"set":3600,"unit":1.68},{"rank_min":10000,"set":3600,"unit":1},{"rank_min":20000,"set":3600,"unit":0.6},{"rank_min":30000,"set":3600,"unit":0.6},{"rank_min":50000,"set":3600,"unit":0.5},{"rank_min":100000,"set":3600,"unit":0.5},{"rank_min":200000,"set":3600,"unit":0.4},{"rank_min":500000,"set":3600,"unit":0.4},{"rank_min":500001,"set":3600,"unit":0.4}],"A5以下":[{"rank_min":1000,"set":3600,"unit":3.6},{"rank_min":2000,"set":3600,"unit":2.88},{"rank_min":3000,"set":3600,"unit":1.92},{"rank_min":4000,"set":3600,"unit":1.8},{"rank_min":5000,"set":3600,"unit":1.56},{"rank_min":10000,"set":3600,"unit":1.1},{"rank_min":20000,"set":3600,"unit":0.58},{"rank_min":30000,"set":3600,"unit":0.5},{"rank_min":50000,"set":3600,"unit":0.43},{"rank_min":100000,"set":3600,"unit":0.41},{"rank_min":200000,"set":3600,"unit":0.35},{"rank_min":500000,"set":3600,"unit":0.34},{"rank_min":500001,"set":3600,"unit":0.34}]},"threeFold":{"A4":[{"rank_min":1000,"set":3600,"unit":4.8},{"rank_min":2000,"set":3600,"unit":4.04},{"rank_min":3000,"set":3600,"unit":3.24},{"rank_min":4000,"set":3600,"unit":2.84},{"rank_min":5000,"set":3600,"unit":2.4},{"rank_min":10000,"set":3600,"unit":1.7},{"rank_min":20000,"set":3600,"unit":1},{"rank_min":30000,"set":3600,"unit":0.9},{"rank_min":50000,"set":3600,"unit":0.9},{"rank_min":100000,"set":3600,"unit":0.8},{"rank_min":200000,"set":3600,"unit":0.7},{"rank_min":500000,"set":3600,"unit":0.7},{"rank_min":500001,"set":3600,"unit":0.7}],"B5":[{"rank_min":1000,"set":3600,"unit":4.8},{"rank_min":2000,"set":3600,"unit":3.96},{"rank_min":3000,"set":3600,"unit":3.12},{"rank_min":4000,"set":3600,"unit":2.76},{"rank_min":5000,"set":3600,"unit":2.4},{"rank_min":10000,"set":3600,"unit":1.6},{"rank_min":20000,"set":3600,"unit":0.9},{"rank_min":30000,"set":3600,"unit":0.9},{"rank_min":50000,"set":3600,"unit":0.8},{"rank_min":100000,"set":3600,"unit":0.7},{"rank_min":200000,"set":3600,"unit":0.7},{"rank_min":500000,"set":3600,"unit":0.6},{"rank_min":500001,"set":3600,"unit":0.6}],"A5・B6以下":[{"rank_min":1000,"set":3600,"unit":4.8},{"rank_min":2000,"set":3600,"unit":3.96},{"rank_min":3000,"set":3600,"unit":3.12},{"rank_min":4000,"set":3600,"unit":2.76},{"rank_min":5000,"set":3600,"unit":2.4},{"rank_min":10000,"set":3600,"unit":1.44},{"rank_min":20000,"set":3600,"unit":0.84},{"rank_min":30000,"set":3600,"unit":0.79},{"rank_min":50000,"set":3600,"unit":0.72},{"rank_min":100000,"set":3600,"unit":0.65},{"rank_min":200000,"set":3600,"unit":0.58},{"rank_min":500000,"set":3600,"unit":0.5},{"rank_min":500001,"set":3600,"unit":0.5}],"100×210":[{"rank_min":1000,"set":3600,"unit":3.96},{"rank_min":2000,"set":3600,"unit":3.38},{"rank_min":3000,"set":3600,"unit":2.68},{"rank_min":4000,"set":3600,"unit":2.4},{"rank_min":5000,"set":3600,"unit":2.08},{"rank_min":10000,"set":3600,"unit":1.26},{"rank_min":20000,"set":3600,"unit":0.74},{"rank_min":30000,"set":3600,"unit":0.71},{"rank_min":50000,"set":3600,"unit":0.65},{"rank_min":100000,"set":3600,"unit":0.58},{"rank_min":200000,"set":3600,"unit":0.52},{"rank_min":500000,"set":3600,"unit":0.46},{"rank_min":500001,"set":3600,"unit":0.46}]}},"binding":{"sheet_saddle":{"B6・A5":[{"rank_min":1000,"base":12000,"p32":0,"p16":1.74,"p8":1.56,"p4":1.2,"p2":1.68,"glue4":2.16,"glue2":0,"fold_in3":1.2,"fold_out3":3.6,"cover_2fold":1.2,"cover_1wing":1.2,"cover_2wing":6,"saddle2":1.8,"punch1_2":2.4,"punch3_4":2.88,"punch5_6":3.36,"punch7up":3.84},{"rank_min":3000,"base":12000,"p32":0,"p16":1.68,"p8":1.5,"p4":1.02,"p2":1.56,"glue4":2.04,"glue2":0,"fold_in3":1.08,"fold_out3":2.88,"cover_2fold":1.02,"cover_1wing":1.08,"cover_2wing":3,"saddle2":1.2,"punch1_2":1.92,"punch3_4":2.4,"punch5_6":2.88,"punch7up":3.36},{"rank_min":5000,"base":12000,"p32":0,"p16":1.62,"p8":1.44,"p4":0.84,"p2":1.5,"glue4":1.98,"glue2":0,"fold_in3":1.02,"fold_out3":2.82,"cover_2fold":0.84,"cover_1wing":1.02,"cover_2wing":1.94,"saddle2":1.2,"punch1_2":1.44,"punch3_4":1.92,"punch5_6":2.4,"punch7up":2.88},{"rank_min":10000,"base":12000,"p32":0,"p16":1.56,"p8":1.38,"p4":0.84,"p2":1.44,"glue4":1.86,"glue2":0,"fold_in3":0.96,"fold_out3":2.76,"cover_2fold":0.84,"cover_1wing":0.96,"cover_2wing":1.08,"saddle2":1.2,"punch1_2":1.2,"punch3_4":1.68,"punch5_6":2.16,"punch7up":2.64},{"rank_min":20000,"base":12000,"p32":0,"p16":1.5,"p8":1.32,"p4":0.66,"p2":1.38,"glue4":1.74,"glue2":0,"fold_in3":0.84,"fold_out3":2.64,"cover_2fold":0.66,"cover_1wing":0.84,"cover_2wing":1,"saddle2":1.08,"punch1_2":0.96,"punch3_4":1.44,"punch5_6":1.92,"punch7up":2.4}],"B5":[{"rank_min":1000,"base":12000,"p32":0,"p16":1.8,"p8":1.62,"p4":1.44,"p2":1.92,"glue4":2.4,"glue2":0,"fold_in3":1.2,"fold_out3":3.6,"cover_2fold":1.44,"cover_1wing":1.2,"cover_2wing":7.2,"saddle2":1.8,"punch1_2":2.4,"punch3_4":2.88,"punch5_6":3.36,"punch7up":3.84},{"rank_min":3000,"base":12000,"p32":0,"p16":1.74,"p8":1.56,"p4":1.2,"p2":1.74,"glue4":2.28,"glue2":0,"fold_in3":1.08,"fold_out3":2.88,"cover_2fold":1.2,"cover_1wing":1.08,"cover_2wing":3.6,"saddle2":1.2,"punch1_2":1.92,"punch3_4":2.4,"punch5_6":2.88,"punch7up":3.36},{"rank_min":5000,"base":12000,"p32":0,"p16":1.68,"p8":1.5,"p4":0.96,"p2":1.68,"glue4":2.16,"glue2":0,"fold_in3":1.02,"fold_out3":2.82,"cover_2fold":0.96,"cover_1wing":1.02,"cover_2wing":2.22,"saddle2":1.2,"punch1_2":1.44,"punch3_4":1.92,"punch5_6":2.4,"punch7up":2.88},{"rank_min":10000,"base":12000,"p32":0,"p16":1.62,"p8":1.44,"p4":0.96,"p2":1.62,"glue4":2.04,"glue2":0,"fold_in3":0.96,"fold_out3":2.76,"cover_2fold":0.96,"cover_1wing":0.96,"cover_2wing":1.2,"saddle2":1.2,"punch1_2":1.2,"punch3_4":1.68,"punch5_6":2.16,"punch7up":2.64},{"rank_min":20000,"base":12000,"p32":0,"p16":1.56,"p8":1.38,"p4":0.72,"p2":1.56,"glue4":1.92,"glue2":0,"fold_in3":0.84,"fold_out3":2.64,"cover_2fold":0.72,"cover_1wing":0.84,"cover_2wing":1.08,"saddle2":1.08,"punch1_2":0.96,"punch3_4":1.44,"punch5_6":1.92,"punch7up":2.4}],"A4":[{"rank_min":1000,"base":12000,"p32":0,"p16":1.8,"p8":1.62,"p4":1.44,"p2":1.92,"glue4":2.4,"glue2":0,"fold_in3":1.2,"fold_out3":4.8,"cover_2fold":1.44,"cover_1wing":1.2,"cover_2wing":7.2,"saddle2":1.44,"punch1_2":2.4,"punch3_4":2.88,"punch5_6":3.36,"punch7up":3.84},{"rank_min":3000,"base":12000,"p32":0,"p16":1.74,"p8":1.56,"p4":1.2,"p2":1.74,"glue4":2.28,"glue2":0,"fold_in3":1.08,"fold_out3":3.48,"cover_2fold":1.2,"cover_1wing":1.08,"cover_2wing":3.6,"saddle2":1.2,"punch1_2":1.92,"punch3_4":2.4,"punch5_6":2.88,"punch7up":3.36},{"rank_min":5000,"base":12000,"p32":0,"p16":1.68,"p8":1.5,"p4":0.96,"p2":1.68,"glue4":2.16,"glue2":0,"fold_in3":1.02,"fold_out3":3.42,"cover_2fold":0.96,"cover_1wing":1.02,"cover_2wing":2.58,"saddle2":0.96,"punch1_2":1.44,"punch3_4":1.92,"punch5_6":2.4,"punch7up":2.88},{"rank_min":10000,"base":12000,"p32":0,"p16":1.62,"p8":1.44,"p4":0.96,"p2":1.62,"glue4":2.04,"glue2":0,"fold_in3":0.96,"fold_out3":3.36,"cover_2fold":0.96,"cover_1wing":0.96,"cover_2wing":1.44,"saddle2":0.72,"punch1_2":1.2,"punch3_4":1.68,"punch5_6":2.16,"punch7up":2.64},{"rank_min":20000,"base":12000,"p32":0,"p16":1.56,"p8":1.38,"p4":0.84,"p2":1.56,"glue4":1.92,"glue2":0,"fold_in3":0.84,"fold_out3":3.24,"cover_2fold":0.84,"cover_1wing":0.84,"cover_2wing":1.32,"saddle2":0.6,"punch1_2":0.96,"punch3_4":1.44,"punch5_6":1.92,"punch7up":2.4}],"B4":[{"rank_min":1000,"base":12000,"p32":0,"p16":0,"p8":2.04,"p4":1.86,"p2":2.22,"glue4":2.58,"glue2":0,"fold_in3":1.8,"fold_out3":4.8,"cover_2fold":1.86,"cover_1wing":1.8,"cover_2wing":0,"saddle2":1.8,"punch1_2":2.64,"punch3_4":3.12,"punch5_6":3.6,"punch7up":4.08},{"rank_min":3000,"base":12000,"p32":0,"p16":0,"p8":1.8,"p4":1.62,"p2":1.98,"glue4":2.34,"glue2":0,"fold_in3":1.68,"fold_out3":3.6,"cover_2fold":1.62,"cover_1wing":1.68,"cover_2wing":0,"saddle2":1.2,"punch1_2":2.16,"punch3_4":2.64,"punch5_6":3.12,"punch7up":3.6},{"rank_min":5000,"base":12000,"p32":0,"p16":0,"p8":1.62,"p4":1.44,"p2":1.8,"glue4":2.16,"glue2":0,"fold_in3":1.62,"fold_out3":3.48,"cover_2fold":1.44,"cover_1wing":1.62,"cover_2wing":0,"saddle2":1.2,"punch1_2":1.68,"punch3_4":2.16,"punch5_6":2.64,"punch7up":3.12},{"rank_min":10000,"base":12000,"p32":0,"p16":0,"p8":1.5,"p4":1.32,"p2":1.68,"glue4":2.04,"glue2":0,"fold_in3":1.56,"fold_out3":3.42,"cover_2fold":1.32,"cover_1wing":1.56,"cover_2wing":0,"saddle2":1.2,"punch1_2":1.44,"punch3_4":1.92,"punch5_6":2.4,"punch7up":2.88},{"rank_min":20000,"base":12000,"p32":0,"p16":0,"p8":1.38,"p4":1.2,"p2":1.56,"glue4":1.92,"glue2":0,"fold_in3":1.44,"fold_out3":3.36,"cover_2fold":1.2,"cover_1wing":1.44,"cover_2wing":0,"saddle2":1.08,"punch1_2":1.2,"punch3_4":1.68,"punch5_6":2.4,"punch7up":2.64}]},"sheet_perfect":{"B6・A5":[{"rank_min":1000,"base":22500,"p32":0,"p16":2.55,"p8":2.1,"p4":2.4,"p2":2.7,"glue4":0,"glue2":0,"fold2":2.4,"fold3":2.55,"endpaper":7.5,"flat2":7.5,"perfect_upto5":9.98,"perfect_upto10":10.73,"perfect_upto15":11.4,"perfect_upto20":12.45,"perfect_upto30":14.7,"perfect_upto35":16.2,"perfect_upto40":18.45,"perfect_upto45":21.15,"punch1_2":6.38,"punch3_4":8.63,"punch5_6":7.88,"punch7up":10.88},{"rank_min":3000,"base":22500,"p32":0,"p16":1.95,"p8":1.65,"p4":1.95,"p2":2.25,"glue4":0,"glue2":0,"fold2":1.95,"fold3":2.1,"endpaper":6.75,"flat2":6.75,"perfect_upto5":9.23,"perfect_upto10":9.98,"perfect_upto15":10.65,"perfect_upto20":11.7,"perfect_upto30":13.95,"perfect_upto35":15.45,"perfect_upto40":17.7,"perfect_upto45":20.4,"punch1_2":5.63,"punch3_4":6.38,"punch5_6":7.13,"punch7up":10.13},{"rank_min":5000,"base":22500,"p32":0,"p16":1.8,"p8":1.5,"p4":1.8,"p2":2.18,"glue4":0,"glue2":0,"fold2":1.8,"fold3":1.95,"endpaper":6,"flat2":6,"perfect_upto5":8.48,"perfect_upto10":9.23,"perfect_upto15":9.9,"perfect_upto20":10.95,"perfect_upto30":13.2,"perfect_upto35":14.7,"perfect_upto40":16.95,"perfect_upto45":19.65,"punch1_2":4.13,"punch3_4":4.88,"punch5_6":5.63,"punch7up":8.63},{"rank_min":10000,"base":22500,"p32":0,"p16":1.73,"p8":1.43,"p4":1.73,"p2":2.1,"glue4":0,"glue2":0,"fold2":1.73,"fold3":1.88,"endpaper":5.25,"flat2":5.25,"perfect_upto5":8.1,"perfect_upto10":8.85,"perfect_upto15":9.53,"perfect_upto20":10.58,"perfect_upto30":12.83,"perfect_upto35":14.33,"perfect_upto40":16.58,"perfect_upto45":19.28,"punch1_2":3.38,"punch3_4":4.13,"punch5_6":4.88,"punch7up":7.88},{"rank_min":10001,"base":22500,"p32":0,"p16":1.65,"p8":1.35,"p4":1.65,"p2":1.95,"glue4":0,"glue2":0,"fold2":1.65,"fold3":1.8,"endpaper":4.5,"flat2":4.5,"perfect_upto5":7.73,"perfect_upto10":8.48,"perfect_upto15":9.15,"perfect_upto20":10.2,"perfect_upto30":12.45,"perfect_upto35":13.95,"perfect_upto40":16.2,"perfect_upto45":18.75,"punch1_2":2.63,"punch3_4":3.38,"punch5_6":4.13,"punch7up":7.13}],"B5":[{"rank_min":1000,"base":22500,"p32":0,"p16":2.55,"p8":2.25,"p4":2.55,"p2":2.85,"glue4":0,"glue2":0,"fold2":2.55,"fold3":2.7,"endpaper":7.5,"flat2":7.5,"perfect_upto5":10.35,"perfect_upto10":11.25,"perfect_upto15":12.08,"perfect_upto20":13.05,"perfect_upto30":15.3,"perfect_upto35":17.55,"perfect_upto40":19.8,"perfect_upto45":22.05,"punch1_2":6.75,"punch3_4":7.5,"punch5_6":8.25,"punch7up":11.25},{"rank_min":3000,"base":22500,"p32":0,"p16":2.1,"p8":1.8,"p4":2.1,"p2":2.4,"glue4":0,"glue2":0,"fold2":2.1,"fold3":2.25,"endpaper":6.75,"flat2":6.75,"perfect_upto5":9.6,"perfect_upto10":10.5,"perfect_upto15":11.33,"perfect_upto20":12.3,"perfect_upto30":14.55,"perfect_upto35":16.8,"perfect_upto40":19.05,"perfect_upto45":21.3,"punch1_2":6,"punch3_4":6.75,"punch5_6":7.5,"punch7up":10.5},{"rank_min":5000,"base":22500,"p32":0,"p16":1.95,"p8":1.65,"p4":1.95,"p2":2.33,"glue4":0,"glue2":0,"fold2":1.95,"fold3":2.1,"endpaper":6,"flat2":6,"perfect_upto5":8.85,"perfect_upto10":9.75,"perfect_upto15":10.58,"perfect_upto20":11.55,"perfect_upto30":13.8,"perfect_upto35":16.05,"perfect_upto40":18.3,"perfect_upto45":20.55,"punch1_2":4.5,"punch3_4":5.25,"punch5_6":6,"punch7up":9},{"rank_min":10000,"base":22500,"p32":0,"p16":1.88,"p8":1.58,"p4":1.88,"p2":2.25,"glue4":0,"glue2":0,"fold2":1.88,"fold3":2.03,"endpaper":5.25,"flat2":5.25,"perfect_upto5":8.48,"perfect_upto10":9.38,"perfect_upto15":10.2,"perfect_upto20":11.18,"perfect_upto30":13.43,"perfect_upto35":15.3,"perfect_upto40":17.55,"perfect_upto45":19.8,"punch1_2":3.75,"punch3_4":4.5,"punch5_6":5.25,"punch7up":8.25},{"rank_min":10001,"base":22500,"p32":0,"p16":1.8,"p8":1.5,"p4":1.8,"p2":2.1,"glue4":0,"glue2":0,"fold2":1.8,"fold3":1.95,"endpaper":4.5,"flat2":4.5,"perfect_upto5":8.1,"perfect_upto10":9,"perfect_upto15":9.83,"perfect_upto20":10.8,"perfect_upto30":13.05,"perfect_upto35":14.55,"perfect_upto40":16.8,"perfect_upto45":19.05,"punch1_2":3,"punch3_4":3.75,"punch5_6":4.5,"punch7up":7.5}],"A4":[{"rank_min":1000,"base":22500,"p32":0,"p16":2.7,"p8":2.4,"p4":2.7,"p2":3,"glue4":0,"glue2":0,"fold2":2.7,"fold3":3,"endpaper":7.5,"flat2":7.5,"perfect_upto5":11.25,"perfect_upto10":12.3,"perfect_upto15":13.5,"perfect_upto20":15,"perfect_upto30":17.25,"perfect_upto35":19.5,"perfect_upto40":21,"perfect_upto45":23.25,"punch1_2":6.75,"punch3_4":7.5,"punch5_6":9,"punch7up":11.25},{"rank_min":3000,"base":22500,"p32":0,"p16":2.25,"p8":1.95,"p4":2.25,"p2":2.55,"glue4":0,"glue2":0,"fold2":2.25,"fold3":2.4,"endpaper":6.75,"flat2":6.75,"perfect_upto5":10.5,"perfect_upto10":11.55,"perfect_upto15":12.75,"perfect_upto20":14.25,"perfect_upto30":16.5,"perfect_upto35":18.75,"perfect_upto40":20.25,"perfect_upto45":22.5,"punch1_2":6,"punch3_4":6.75,"punch5_6":8.25,"punch7up":10.5},{"rank_min":5000,"base":22500,"p32":0,"p16":2.1,"p8":1.8,"p4":2.1,"p2":2.4,"glue4":0,"glue2":0,"fold2":2.1,"fold3":2.25,"endpaper":6,"flat2":6,"perfect_upto5":9.75,"perfect_upto10":10.8,"perfect_upto15":12,"perfect_upto20":13.5,"perfect_upto30":15.75,"perfect_upto35":18,"perfect_upto40":19.5,"perfect_upto45":21.75,"punch1_2":4.5,"punch3_4":5.25,"punch5_6":6,"punch7up":9},{"rank_min":10000,"base":22500,"p32":0,"p16":2.03,"p8":1.73,"p4":2.03,"p2":2.33,"glue4":0,"glue2":0,"fold2":2.03,"fold3":2.18,"endpaper":5.25,"flat2":5.25,"perfect_upto5":9.38,"perfect_upto10":10.43,"perfect_upto15":11.63,"perfect_upto20":13.13,"perfect_upto30":15.38,"perfect_upto35":17.25,"perfect_upto40":18.75,"perfect_upto45":21,"punch1_2":3.75,"punch3_4":4.5,"punch5_6":5.25,"punch7up":8.25},{"rank_min":10001,"base":22500,"p32":0,"p16":1.95,"p8":1.65,"p4":1.95,"p2":2.25,"glue4":0,"glue2":0,"fold2":1.95,"fold3":2.1,"endpaper":4.5,"flat2":4.5,"perfect_upto5":9,"perfect_upto10":10.05,"perfect_upto15":11.25,"perfect_upto20":12.75,"perfect_upto30":15,"perfect_upto35":16.5,"perfect_upto40":18,"perfect_upto45":20.25,"punch1_2":3,"punch3_4":3.75,"punch5_6":4.5,"punch7up":7.5}],"B4":[{"rank_min":1000,"base":22500,"p32":0,"p16":0,"p8":2.7,"p4":3,"p2":3.3,"glue4":0,"glue2":0,"fold2":3,"fold3":3.3,"endpaper":9,"flat2":9,"perfect_upto5":15,"perfect_upto10":15.3,"perfect_upto15":17.25,"perfect_upto20":19.5,"perfect_upto30":21.75,"perfect_upto35":24,"perfect_upto40":26.25,"perfect_upto45":28.5,"punch1_2":3,"punch3_4":3.75,"punch5_6":4.5,"punch7up":6},{"rank_min":3000,"base":22500,"p32":0,"p16":0,"p8":2.4,"p4":2.7,"p2":3,"glue4":0,"glue2":0,"fold2":2.55,"fold3":2.85,"endpaper":8.25,"flat2":8.25,"perfect_upto5":13.5,"perfect_upto10":13.8,"perfect_upto15":15.75,"perfect_upto20":18,"perfect_upto30":20.25,"perfect_upto35":22.5,"perfect_upto40":24.75,"perfect_upto45":27,"punch1_2":3,"punch3_4":3.75,"punch5_6":4.5,"punch7up":6},{"rank_min":5000,"base":22500,"p32":0,"p16":0,"p8":2.25,"p4":2.55,"p2":2.85,"glue4":0,"glue2":0,"fold2":2.4,"fold3":2.7,"endpaper":7.5,"flat2":7.5,"perfect_upto5":12,"perfect_upto10":12.3,"perfect_upto15":14.25,"perfect_upto20":16.5,"perfect_upto30":18.75,"perfect_upto35":21,"perfect_upto40":23.25,"perfect_upto45":25.5,"punch1_2":3,"punch3_4":3.75,"punch5_6":4.5,"punch7up":6},{"rank_min":10000,"base":22500,"p32":0,"p16":0,"p8":2.18,"p4":2.48,"p2":2.78,"glue4":0,"glue2":0,"fold2":2.33,"fold3":2.63,"endpaper":6.75,"flat2":6.75,"perfect_upto5":10.5,"perfect_upto10":10.8,"perfect_upto15":12.75,"perfect_upto20":15,"perfect_upto30":17.25,"perfect_upto35":19.5,"perfect_upto40":21.75,"perfect_upto45":24,"punch1_2":3,"punch3_4":3.75,"punch5_6":4.5,"punch7up":6},{"rank_min":10001,"base":22500,"p32":0,"p16":0,"p8":2.1,"p4":2.4,"p2":2.7,"glue4":0,"glue2":0,"fold2":2.25,"fold3":2.55,"endpaper":6,"flat2":6,"perfect_upto5":10.5,"perfect_upto10":10.8,"perfect_upto15":12.75,"perfect_upto20":15,"perfect_upto30":17.25,"perfect_upto35":19.5,"perfect_upto40":21.75,"perfect_upto45":24,"punch1_2":3,"punch3_4":3.75,"punch5_6":4.5,"punch7up":6}]},"web_saddle":{"B6・A5":[{"rank_min":50000,"base":12000,"p32":0,"p16":0.58,"p8":0.58,"p4":0.78,"p2":1.44,"glue4":2.16,"glue2":0,"fold_in3":0.96,"fold_out3":2.76,"cover_2fold":0.78,"cover_1wing":0.96,"cover_2wing":1.2,"saddle2":0.54,"punch1_2":2.4,"punch3_4":2.88,"punch5_6":3.36,"punch7up":3.84},{"rank_min":100000,"base":12000,"p32":0,"p16":0.54,"p8":0.54,"p4":0.78,"p2":1.32,"glue4":2.04,"glue2":0,"fold_in3":0.9,"fold_out3":2.7,"cover_2fold":0.78,"cover_1wing":0.9,"cover_2wing":1.1,"saddle2":0.54,"punch1_2":1.92,"punch3_4":2.4,"punch5_6":2.88,"punch7up":3.36},{"rank_min":200000,"base":12000,"p32":0,"p16":0.48,"p8":0.48,"p4":0.72,"p2":1.2,"glue4":1.98,"glue2":0,"fold_in3":0.84,"fold_out3":2.64,"cover_2fold":0.72,"cover_1wing":0.84,"cover_2wing":1,"saddle2":0.48,"punch1_2":1.44,"punch3_4":1.92,"punch5_6":2.4,"punch7up":2.88},{"rank_min":500000,"base":12000,"p32":0,"p16":0.44,"p8":0.44,"p4":0.72,"p2":1.08,"glue4":1.86,"glue2":0,"fold_in3":0.78,"fold_out3":2.58,"cover_2fold":0.72,"cover_1wing":0.78,"cover_2wing":0.9,"saddle2":0.48,"punch1_2":1.2,"punch3_4":1.68,"punch5_6":2.16,"punch7up":2.64},{"rank_min":500001,"base":12000,"p32":0,"p16":0.42,"p8":0.42,"p4":0.72,"p2":0.96,"glue4":1.74,"glue2":0,"fold_in3":0.78,"fold_out3":2.58,"cover_2fold":0.72,"cover_1wing":0.78,"cover_2wing":0.9,"saddle2":0.48,"punch1_2":0.96,"punch3_4":1.44,"punch5_6":1.92,"punch7up":2.4}],"B5":[{"rank_min":50000,"base":12000,"p32":0,"p16":0.56,"p8":0.56,"p4":0.78,"p2":1.44,"glue4":2.4,"glue2":0,"fold_in3":1.02,"fold_out3":3,"cover_2fold":0.78,"cover_1wing":1.02,"cover_2wing":1.25,"saddle2":0.6,"punch1_2":2.4,"punch3_4":2.88,"punch5_6":3.36,"punch7up":3.84},{"rank_min":100000,"base":12000,"p32":0,"p16":0.54,"p8":0.54,"p4":0.78,"p2":1.32,"glue4":2.28,"glue2":0,"fold_in3":0.96,"fold_out3":2.94,"cover_2fold":0.78,"cover_1wing":0.96,"cover_2wing":1.15,"saddle2":0.54,"punch1_2":1.92,"punch3_4":2.4,"punch5_6":2.88,"punch7up":3.36},{"rank_min":200000,"base":12000,"p32":0,"p16":0.48,"p8":0.48,"p4":0.72,"p2":1.2,"glue4":2.16,"glue2":0,"fold_in3":0.9,"fold_out3":2.88,"cover_2fold":0.72,"cover_1wing":0.9,"cover_2wing":1.05,"saddle2":0.54,"punch1_2":1.44,"punch3_4":1.92,"punch5_6":2.4,"punch7up":2.88},{"rank_min":500000,"base":12000,"p32":0,"p16":0.48,"p8":0.48,"p4":0.72,"p2":1.08,"glue4":2.04,"glue2":0,"fold_in3":0.84,"fold_out3":2.82,"cover_2fold":0.72,"cover_1wing":0.84,"cover_2wing":0.95,"saddle2":0.54,"punch1_2":1.2,"punch3_4":1.68,"punch5_6":2.16,"punch7up":2.64},{"rank_min":500001,"base":12000,"p32":0,"p16":0.48,"p8":0.48,"p4":0.72,"p2":0.96,"glue4":1.92,"glue2":0,"fold_in3":0.84,"fold_out3":2.76,"cover_2fold":0.72,"cover_1wing":0.84,"cover_2wing":0.95,"saddle2":0.54,"punch1_2":0.96,"punch3_4":1.44,"punch5_6":1.92,"punch7up":2.4}],"A4":[{"rank_min":50000,"base":12000,"p32":0,"p16":0.54,"p8":0.54,"p4":0.78,"p2":1.44,"glue4":1.74,"glue2":0,"fold_in3":1.08,"fold_out3":3.24,"cover_2fold":0.78,"cover_1wing":1.08,"cover_2wing":1.25,"saddle2":0.6,"punch1_2":2.4,"punch3_4":2.88,"punch5_6":3.36,"punch7up":3.84},{"rank_min":100000,"base":12000,"p32":0,"p16":0.52,"p8":0.52,"p4":0.78,"p2":1.32,"glue4":1.66,"glue2":0,"fold_in3":1.02,"fold_out3":3.18,"cover_2fold":0.78,"cover_1wing":1.02,"cover_2wing":1.15,"saddle2":0.54,"punch1_2":1.92,"punch3_4":2.4,"punch5_6":2.88,"punch7up":3.36},{"rank_min":200000,"base":12000,"p32":0,"p16":0.48,"p8":0.48,"p4":0.72,"p2":1.2,"glue4":1.62,"glue2":0,"fold_in3":0.96,"fold_out3":3.12,"cover_2fold":0.72,"cover_1wing":0.96,"cover_2wing":1.05,"saddle2":0.54,"punch1_2":1.44,"punch3_4":1.92,"punch5_6":2.4,"punch7up":2.88},{"rank_min":500000,"base":12000,"p32":0,"p16":0.48,"p8":0.48,"p4":0.72,"p2":1.2,"glue4":1.56,"glue2":0,"fold_in3":0.9,"fold_out3":3.06,"cover_2fold":0.72,"cover_1wing":0.9,"cover_2wing":0.95,"saddle2":0.54,"punch1_2":1.2,"punch3_4":1.68,"punch5_6":2.16,"punch7up":2.64},{"rank_min":500001,"base":12000,"p32":0,"p16":0.48,"p8":0.48,"p4":0.72,"p2":1.2,"glue4":1.56,"glue2":0,"fold_in3":0.84,"fold_out3":3,"cover_2fold":0.72,"cover_1wing":0.84,"cover_2wing":0.95,"saddle2":0.54,"punch1_2":0.96,"punch3_4":1.44,"punch5_6":1.92,"punch7up":2.4}],"B4":[{"rank_min":50000,"base":12000,"p32":0,"p16":0,"p8":0.72,"p4":0.72,"p2":2.22,"glue4":2.58,"glue2":0,"fold_in3":1.8,"fold_out3":4.8,"cover_2fold":0.72,"cover_1wing":1.8,"cover_2wing":0,"saddle2":0.96,"punch1_2":2.64,"punch3_4":3.12,"punch5_6":3.6,"punch7up":4.08},{"rank_min":100000,"base":12000,"p32":0,"p16":0,"p8":0.6,"p4":0.6,"p2":1.98,"glue4":2.34,"glue2":0,"fold_in3":1.68,"fold_out3":3.6,"cover_2fold":0.6,"cover_1wing":1.68,"cover_2wing":0,"saddle2":0.84,"punch1_2":2.16,"punch3_4":2.64,"punch5_6":3.12,"punch7up":3.6},{"rank_min":200000,"base":12000,"p32":0,"p16":0,"p8":0.54,"p4":0.54,"p2":1.8,"glue4":2.16,"glue2":0,"fold_in3":1.62,"fold_out3":3.48,"cover_2fold":0.54,"cover_1wing":1.62,"cover_2wing":0,"saddle2":0.72,"punch1_2":1.68,"punch3_4":2.16,"punch5_6":2.64,"punch7up":3.12},{"rank_min":500000,"base":12000,"p32":0,"p16":0,"p8":0.54,"p4":0.54,"p2":1.68,"glue4":2.04,"glue2":0,"fold_in3":1.56,"fold_out3":3.42,"cover_2fold":0.54,"cover_1wing":1.56,"cover_2wing":0,"saddle2":0.72,"punch1_2":1.44,"punch3_4":1.92,"punch5_6":2.4,"punch7up":2.88},{"rank_min":500001,"base":12000,"p32":0,"p16":0,"p8":0.54,"p4":0.54,"p2":1.56,"glue4":1.92,"glue2":0,"fold_in3":1.44,"fold_out3":3.36,"cover_2fold":0.54,"cover_1wing":1.44,"cover_2wing":0,"saddle2":0.72,"punch1_2":1.2,"punch3_4":1.68,"punch5_6":2.4,"punch7up":2.64}]},"web_perfect":{"B6・A5":[{"rank_min":30000,"base":16500,"p32":0,"p16":0.61,"p8":1.43,"p4":1.16,"p2":1.05,"glue4":0,"glue2":0,"fold2":1.16,"fold3":1.38,"endpaper":3.3,"flat2":3.3,"perfect_upto5":5.67,"perfect_upto10":6.22,"perfect_upto15":6.71,"perfect_upto20":7.48,"perfect_upto30":9.13,"perfect_upto35":10.23,"perfect_upto40":11.88,"perfect_upto45":13.75,"punch1_2":2.42,"punch3_4":2.75,"punch5_6":3.3,"punch7up":5.23},{"rank_min":50000,"base":16500,"p32":0,"p16":0.55,"p8":1.38,"p4":1.05,"p2":0.94,"glue4":0,"glue2":0,"fold2":1.05,"fold3":1.27,"endpaper":2.75,"flat2":3.3,"perfect_upto5":5.12,"perfect_upto10":5.45,"perfect_upto15":6.16,"perfect_upto20":6.93,"perfect_upto30":8.58,"perfect_upto35":9.68,"perfect_upto40":11.33,"perfect_upto45":13.2,"punch1_2":2.42,"punch3_4":2.75,"punch5_6":3.3,"punch7up":5.23},{"rank_min":100000,"base":16500,"p32":0,"p16":0.5,"p8":1.32,"p4":0.94,"p2":0.83,"glue4":0,"glue2":0,"fold2":0.94,"fold3":1.16,"endpaper":2.2,"flat2":3.08,"perfect_upto5":5.12,"perfect_upto10":5.45,"perfect_upto15":6.16,"perfect_upto20":6.93,"perfect_upto30":8.58,"perfect_upto35":9.68,"perfect_upto40":11.33,"perfect_upto45":13.2,"punch1_2":1.87,"punch3_4":2.2,"punch5_6":2.75,"punch7up":4.95},{"rank_min":200000,"base":16500,"p32":0,"p16":0.44,"p8":1.27,"p4":0.94,"p2":0.83,"glue4":0,"glue2":0,"fold2":0.94,"fold3":1.16,"endpaper":2.2,"flat2":3.08,"perfect_upto5":4.57,"perfect_upto10":5.12,"perfect_upto15":5.61,"perfect_upto20":6.38,"perfect_upto30":8.03,"perfect_upto35":9.13,"perfect_upto40":10.78,"perfect_upto45":12.43,"punch1_2":1.87,"punch3_4":2.2,"punch5_6":2.75,"punch7up":4.95},{"rank_min":200001,"base":16500,"p32":0,"p16":0.44,"p8":1.1,"p4":0.94,"p2":0.83,"glue4":0,"glue2":0,"fold2":0.94,"fold3":1.16,"endpaper":2.2,"flat2":3.08,"perfect_upto5":4.57,"perfect_upto10":5.12,"perfect_upto15":5.61,"perfect_upto20":6.38,"perfect_upto30":8.03,"perfect_upto35":9.13,"perfect_upto40":10.78,"perfect_upto45":12.43,"punch1_2":1.87,"punch3_4":2.2,"punch5_6":2.75,"punch7up":4.95}],"B5":[{"rank_min":30000,"base":16500,"p32":0,"p16":0.61,"p8":0.61,"p4":1.21,"p2":1.1,"glue4":0,"glue2":0,"fold2":1.21,"fold3":1.43,"endpaper":3.3,"flat2":3.3,"perfect_upto5":5.94,"perfect_upto10":6.6,"perfect_upto15":7.21,"perfect_upto20":7.92,"perfect_upto30":9.57,"perfect_upto35":10.67,"perfect_upto40":12.32,"perfect_upto45":13.97,"punch1_2":2.42,"punch3_4":2.75,"punch5_6":3.3,"punch7up":5.5},{"rank_min":50000,"base":16500,"p32":0,"p16":0.55,"p8":0.55,"p4":1.1,"p2":0.99,"glue4":0,"glue2":0,"fold2":1.1,"fold3":1.32,"endpaper":2.75,"flat2":3.3,"perfect_upto5":5.39,"perfect_upto10":5.83,"perfect_upto15":6.66,"perfect_upto20":7.37,"perfect_upto30":9.02,"perfect_upto35":10.12,"perfect_upto40":11.77,"perfect_upto45":13.42,"punch1_2":2.42,"punch3_4":2.75,"punch5_6":3.3,"punch7up":5.5},{"rank_min":100000,"base":16500,"p32":0,"p16":0.5,"p8":0.5,"p4":0.99,"p2":0.88,"glue4":0,"glue2":0,"fold2":0.99,"fold3":1.21,"endpaper":2.2,"flat2":3.08,"perfect_upto5":5.39,"perfect_upto10":5.83,"perfect_upto15":6.66,"perfect_upto20":7.37,"perfect_upto30":9.02,"perfect_upto35":10.12,"perfect_upto40":11.77,"perfect_upto45":13.42,"punch1_2":1.87,"punch3_4":2.2,"punch5_6":2.75,"punch7up":5.23},{"rank_min":200000,"base":16500,"p32":0,"p16":0.44,"p8":0.44,"p4":0.99,"p2":0.88,"glue4":0,"glue2":0,"fold2":0.99,"fold3":1.21,"endpaper":2.2,"flat2":3.08,"perfect_upto5":4.84,"perfect_upto10":5.5,"perfect_upto15":6.11,"perfect_upto20":6.82,"perfect_upto30":8.47,"perfect_upto35":9.57,"perfect_upto40":11.22,"perfect_upto45":12.87,"punch1_2":1.87,"punch3_4":2.2,"punch5_6":2.75,"punch7up":5.23},{"rank_min":200001,"base":16500,"p32":0,"p16":0.44,"p8":0.44,"p4":0.88,"p2":0.88,"glue4":0,"glue2":0,"fold2":0.99,"fold3":1.21,"endpaper":2.2,"flat2":3.08,"perfect_upto5":4.84,"perfect_upto10":5.5,"perfect_upto15":6.11,"perfect_upto20":6.82,"perfect_upto30":8.47,"perfect_upto35":9.57,"perfect_upto40":11.22,"perfect_upto45":12.87,"punch1_2":1.87,"punch3_4":2.2,"punch5_6":2.75,"punch7up":5.23}],"A4":[{"rank_min":30000,"base":16500,"p32":0,"p16":0.61,"p8":0.61,"p4":1.32,"p2":1.32,"glue4":0,"glue2":0,"fold2":1.32,"fold3":1.54,"endpaper":3.3,"flat2":3.3,"perfect_upto5":6.6,"perfect_upto10":7.37,"perfect_upto15":8.25,"perfect_upto20":9.35,"perfect_upto30":11,"perfect_upto35":12.1,"perfect_upto40":13.2,"perfect_upto45":14.85,"punch1_2":2.2,"punch3_4":2.75,"punch5_6":3.3,"punch7up":5.5},{"rank_min":50000,"base":16500,"p32":0,"p16":0.55,"p8":0.55,"p4":1.21,"p2":1.1,"glue4":0,"glue2":0,"fold2":1.21,"fold3":1.43,"endpaper":2.75,"flat2":3.3,"perfect_upto5":6.05,"perfect_upto10":6.82,"perfect_upto15":7.37,"perfect_upto20":8.25,"perfect_upto30":9.9,"perfect_upto35":11,"perfect_upto40":12.65,"perfect_upto45":14.3,"punch1_2":2.2,"punch3_4":2.75,"punch5_6":3.3,"punch7up":5.5},{"rank_min":100000,"base":16500,"p32":0,"p16":0.5,"p8":0.5,"p4":1.1,"p2":0.99,"glue4":0,"glue2":0,"fold2":1.1,"fold3":1.32,"endpaper":2.2,"flat2":3.08,"perfect_upto5":6.05,"perfect_upto10":6.49,"perfect_upto15":7.15,"perfect_upto20":8.25,"perfect_upto30":9.9,"perfect_upto35":11,"perfect_upto40":12.65,"perfect_upto45":14.3,"punch1_2":1.65,"punch3_4":2.2,"punch5_6":2.75,"punch7up":5.23},{"rank_min":200000,"base":16500,"p32":0,"p16":0.44,"p8":0.44,"p4":1.1,"p2":0.88,"glue4":0,"glue2":0,"fold2":1.1,"fold3":1.32,"endpaper":2.2,"flat2":2.86,"perfect_upto5":5.5,"perfect_upto10":6.05,"perfect_upto15":6.6,"perfect_upto20":7.7,"perfect_upto30":9.35,"perfect_upto35":10.45,"perfect_upto40":12.1,"perfect_upto45":13.75,"punch1_2":1.65,"punch3_4":2.2,"punch5_6":2.75,"punch7up":5.23},{"rank_min":200001,"base":16500,"p32":0,"p16":0.44,"p8":0.44,"p4":1.1,"p2":0.88,"glue4":0,"glue2":0,"fold2":1.1,"fold3":1.32,"endpaper":2.2,"flat2":2.86,"perfect_upto5":5.5,"perfect_upto10":6.05,"perfect_upto15":6.6,"perfect_upto20":7.7,"perfect_upto30":9.35,"perfect_upto35":10.45,"perfect_upto40":12.1,"perfect_upto45":13.75,"punch1_2":1.65,"punch3_4":2.2,"punch5_6":2.75,"punch7up":5.23}],"B4":[{"rank_min":30000,"base":16500,"p32":0,"p16":0,"p8":0.88,"p4":2.2,"p2":1.98,"glue4":0,"glue2":0,"fold2":2.2,"fold3":2.53,"endpaper":5.5,"flat2":4.95,"perfect_upto5":11,"perfect_upto10":11.22,"perfect_upto15":12.65,"perfect_upto20":14.3,"perfect_upto30":15.95,"perfect_upto35":17.6,"perfect_upto40":19.25,"perfect_upto45":20.9,"punch1_2":2.2,"punch3_4":2.75,"punch5_6":3.3,"punch7up":4.4},{"rank_min":50000,"base":16500,"p32":0,"p16":0,"p8":0.77,"p4":1.98,"p2":1.76,"glue4":0,"glue2":0,"fold2":1.98,"fold3":2.31,"endpaper":5.5,"flat2":4.95,"perfect_upto5":9.9,"perfect_upto10":10.12,"perfect_upto15":11.55,"perfect_upto20":13.2,"perfect_upto30":14.85,"perfect_upto35":16.5,"perfect_upto40":18.15,"perfect_upto45":19.8,"punch1_2":2.2,"punch3_4":2.75,"punch5_6":3.3,"punch7up":4.4},{"rank_min":100000,"base":16500,"p32":0,"p16":0,"p8":0.72,"p4":1.76,"p2":1.54,"glue4":0,"glue2":0,"fold2":1.76,"fold3":2.09,"endpaper":4.4,"flat2":4.73,"perfect_upto5":8.8,"perfect_upto10":9.02,"perfect_upto15":10.45,"perfect_upto20":12.1,"perfect_upto30":13.75,"perfect_upto35":15.4,"perfect_upto40":17.05,"perfect_upto45":18.7,"punch1_2":2.2,"punch3_4":2.75,"punch5_6":3.3,"punch7up":4.4},{"rank_min":200000,"base":16500,"p32":0,"p16":0,"p8":0.66,"p4":1.54,"p2":1.32,"glue4":0,"glue2":0,"fold2":1.54,"fold3":1.87,"endpaper":4.4,"flat2":4.73,"perfect_upto5":7.7,"perfect_upto10":7.92,"perfect_upto15":9.35,"perfect_upto20":11,"perfect_upto30":12.65,"perfect_upto35":14.3,"perfect_upto40":15.95,"perfect_upto45":17.6,"punch1_2":2.2,"punch3_4":2.75,"punch5_6":3.3,"punch7up":4.4},{"rank_min":200001,"base":16500,"p32":0,"p16":0,"p8":0.66,"p4":1.54,"p2":1.32,"glue4":0,"glue2":0,"fold2":1.54,"fold3":1.87,"endpaper":4.4,"flat2":4.73,"perfect_upto5":7.7,"perfect_upto10":7.92,"perfect_upto15":9.35,"perfect_upto20":11,"perfect_upto30":12.65,"perfect_upto35":14.3,"perfect_upto40":15.95,"perfect_upto45":17.6,"punch1_2":2.2,"punch3_4":2.75,"punch5_6":3.3,"punch7up":4.4}]}},"thomson":{"punch":{"A倍":[{"rank_min":1000,"prep":9450,"unit":8.97},{"rank_min":3000,"prep":9450,"unit":5.8},{"rank_min":5000,"prep":9450,"unit":5.52},{"rank_min":10000,"prep":9450,"unit":5.24},{"rank_min":20000,"prep":9450,"unit":5.24},{"rank_min":30000,"prep":9450,"unit":5.24},{"rank_min":50000,"prep":9450,"unit":5.24},{"rank_min":50001,"prep":9450,"unit":5.24}],"B全":[{"rank_min":1000,"prep":8000,"unit":8.28},{"rank_min":3000,"prep":8000,"unit":5.52},{"rank_min":5000,"prep":8000,"unit":5.24},{"rank_min":10000,"prep":8000,"unit":4.97},{"rank_min":20000,"prep":8000,"unit":4.97},{"rank_min":30000,"prep":8000,"unit":4.97},{"rank_min":50000,"prep":8000,"unit":4.97},{"rank_min":50001,"prep":8000,"unit":4.97}],"A全":[{"rank_min":1000,"prep":6420,"unit":6.9},{"rank_min":3000,"prep":6420,"unit":4.42},{"rank_min":5000,"prep":6420,"unit":4.28},{"rank_min":10000,"prep":6420,"unit":3.93},{"rank_min":20000,"prep":6420,"unit":3.93},{"rank_min":30000,"prep":6420,"unit":3.93},{"rank_min":50000,"prep":6420,"unit":3.93},{"rank_min":50001,"prep":6420,"unit":3.93}],"A2・B2":[{"rank_min":1000,"prep":6420,"unit":6.9},{"rank_min":3000,"prep":6420,"unit":4.42},{"rank_min":5000,"prep":6420,"unit":4.28},{"rank_min":10000,"prep":6420,"unit":3.93},{"rank_min":20000,"prep":6420,"unit":3.93},{"rank_min":30000,"prep":6420,"unit":3.93},{"rank_min":50000,"prep":6420,"unit":3.93},{"rank_min":50001,"prep":6420,"unit":3.93}],"B3・A3以下":[{"rank_min":1000,"prep":6420,"unit":6.9},{"rank_min":3000,"prep":6420,"unit":4.42},{"rank_min":5000,"prep":6420,"unit":4.28},{"rank_min":10000,"prep":6420,"unit":3.93},{"rank_min":20000,"prep":6420,"unit":3.93},{"rank_min":30000,"prep":6420,"unit":3.93},{"rank_min":50000,"prep":6420,"unit":3.93},{"rank_min":50001,"prep":6420,"unit":3.93}]},"mishin":{"A倍":[{"rank_min":1000,"prep":9450,"unit":8.28},{"rank_min":3000,"prep":9450,"unit":5.52},{"rank_min":5000,"prep":9450,"unit":5.24},{"rank_min":10000,"prep":9450,"unit":4.97},{"rank_min":20000,"prep":9450,"unit":4.83},{"rank_min":30000,"prep":9450,"unit":4.83},{"rank_min":50000,"prep":9450,"unit":4.83},{"rank_min":50001,"prep":9450,"unit":4.83}],"B全":[{"rank_min":1000,"prep":8000,"unit":8.28},{"rank_min":3000,"prep":8000,"unit":5.52},{"rank_min":5000,"prep":8000,"unit":5.24},{"rank_min":10000,"prep":8000,"unit":4.97},{"rank_min":20000,"prep":8000,"unit":4.97},{"rank_min":30000,"prep":8000,"unit":4.97},{"rank_min":50000,"prep":8000,"unit":4.97},{"rank_min":50001,"prep":8000,"unit":4.97}],"A全":[{"rank_min":1000,"prep":6420,"unit":5.52},{"rank_min":3000,"prep":6420,"unit":4.14},{"rank_min":5000,"prep":6420,"unit":3.86},{"rank_min":10000,"prep":6420,"unit":3.59},{"rank_min":20000,"prep":6420,"unit":3.45},{"rank_min":30000,"prep":6420,"unit":3.45},{"rank_min":50000,"prep":6420,"unit":3.45},{"rank_min":50001,"prep":6420,"unit":3.45}],"A2・B2":[{"rank_min":1000,"prep":6420,"unit":5.52},{"rank_min":3000,"prep":6420,"unit":4.14},{"rank_min":5000,"prep":6420,"unit":3.86},{"rank_min":10000,"prep":6420,"unit":3.59},{"rank_min":20000,"prep":6420,"unit":3.45},{"rank_min":30000,"prep":6420,"unit":3.45},{"rank_min":50000,"prep":6420,"unit":3.45},{"rank_min":50001,"prep":6420,"unit":3.45}],"B3・A3以下":[{"rank_min":1000,"prep":6420,"unit":5.52},{"rank_min":3000,"prep":6420,"unit":4.14},{"rank_min":5000,"prep":6420,"unit":3.86},{"rank_min":10000,"prep":6420,"unit":3.59},{"rank_min":20000,"prep":6420,"unit":3.45},{"rank_min":30000,"prep":6420,"unit":3.45},{"rank_min":50000,"prep":6420,"unit":3.45},{"rank_min":50001,"prep":6420,"unit":3.45}]}},"surface_pp":{"gloss":{"A1":[{"rank_min":300,"unit":31.1},{"rank_min":500,"unit":25.9},{"rank_min":700,"unit":25.9},{"rank_min":1000,"unit":25.9},{"rank_min":3000,"unit":24.7},{"rank_min":5000,"unit":24.2},{"rank_min":10000,"unit":23.6},{"rank_min":20000,"unit":23},{"rank_min":20001,"unit":22.4}],"A2":[{"rank_min":300,"unit":27.6},{"rank_min":500,"unit":21.3},{"rank_min":700,"unit":19.6},{"rank_min":1000,"unit":19.6},{"rank_min":3000,"unit":19},{"rank_min":5000,"unit":18.4},{"rank_min":10000,"unit":17.8},{"rank_min":20000,"unit":17.3},{"rank_min":20001,"unit":16.7}],"A3":[{"rank_min":300,"unit":27.6},{"rank_min":500,"unit":20.7},{"rank_min":700,"unit":17.8},{"rank_min":1000,"unit":17.8},{"rank_min":3000,"unit":17.3},{"rank_min":5000,"unit":16.7},{"rank_min":10000,"unit":16.7},{"rank_min":20000,"unit":16.1},{"rank_min":20001,"unit":16.1}],"B1":[{"rank_min":300,"unit":36.8},{"rank_min":500,"unit":33.9},{"rank_min":700,"unit":33.9},{"rank_min":1000,"unit":33.9},{"rank_min":3000,"unit":32.8},{"rank_min":5000,"unit":31.6},{"rank_min":10000,"unit":31.1},{"rank_min":20000,"unit":30.5},{"rank_min":20001,"unit":28.8}],"B2":[{"rank_min":300,"unit":30.5},{"rank_min":500,"unit":23},{"rank_min":700,"unit":23},{"rank_min":1000,"unit":23},{"rank_min":3000,"unit":22.4},{"rank_min":5000,"unit":21.3},{"rank_min":10000,"unit":20.7},{"rank_min":20000,"unit":20.1},{"rank_min":20001,"unit":19.6}],"B3":[{"rank_min":300,"unit":27.6},{"rank_min":500,"unit":20.7},{"rank_min":700,"unit":18.4},{"rank_min":1000,"unit":18.4},{"rank_min":3000,"unit":17.8},{"rank_min":5000,"unit":17.3},{"rank_min":10000,"unit":17.3},{"rank_min":20000,"unit":16.7},{"rank_min":20001,"unit":16.7}]},"matte":{"A1":[{"rank_min":300,"unit":35.1},{"rank_min":500,"unit":30.5},{"rank_min":700,"unit":30.5},{"rank_min":1000,"unit":30.5},{"rank_min":3000,"unit":28.8},{"rank_min":5000,"unit":28.2},{"rank_min":10000,"unit":27.6},{"rank_min":20000,"unit":26.5},{"rank_min":20001,"unit":25.9}],"A2":[{"rank_min":300,"unit":31.6},{"rank_min":500,"unit":23.6},{"rank_min":700,"unit":21.3},{"rank_min":1000,"unit":21.3},{"rank_min":3000,"unit":20.7},{"rank_min":5000,"unit":20.1},{"rank_min":10000,"unit":19.6},{"rank_min":20000,"unit":19},{"rank_min":20001,"unit":18.4}],"A3":[{"rank_min":300,"unit":31.6},{"rank_min":500,"unit":23.6},{"rank_min":700,"unit":20.1},{"rank_min":1000,"unit":20.1},{"rank_min":3000,"unit":19},{"rank_min":5000,"unit":17.8},{"rank_min":10000,"unit":17.8},{"rank_min":20000,"unit":17.3},{"rank_min":20001,"unit":17.3}],"B1":[{"rank_min":300,"unit":39.1},{"rank_min":500,"unit":36.8},{"rank_min":700,"unit":36.8},{"rank_min":1000,"unit":36.8},{"rank_min":3000,"unit":35.1},{"rank_min":5000,"unit":33.9},{"rank_min":10000,"unit":33.4},{"rank_min":20000,"unit":31.6},{"rank_min":20001,"unit":30.5}],"B2":[{"rank_min":300,"unit":32.8},{"rank_min":500,"unit":25.3},{"rank_min":700,"unit":25.3},{"rank_min":1000,"unit":25.3},{"rank_min":3000,"unit":24.7},{"rank_min":5000,"unit":24.2},{"rank_min":10000,"unit":23.6},{"rank_min":20000,"unit":23},{"rank_min":20001,"unit":21.3}],"B3":[{"rank_min":300,"unit":31.6},{"rank_min":500,"unit":23.6},{"rank_min":700,"unit":20.1},{"rank_min":1000,"unit":20.1},{"rank_min":3000,"unit":19},{"rank_min":5000,"unit":18.4},{"rank_min":10000,"unit":18.4},{"rank_min":20000,"unit":17.8},{"rank_min":20001,"unit":17.8}]}},"surface_press":{"vinyl":{"A1":[{"rank_min":1000,"unit":15},{"rank_min":3000,"unit":15},{"rank_min":5000,"unit":15},{"rank_min":10000,"unit":15},{"rank_min":20000,"unit":15},{"rank_min":20001,"unit":15}],"A2":[{"rank_min":1000,"unit":15},{"rank_min":3000,"unit":13.5},{"rank_min":5000,"unit":13.5},{"rank_min":10000,"unit":13.5},{"rank_min":20000,"unit":12.4},{"rank_min":20001,"unit":12.4}],"A3":[{"rank_min":1000,"unit":15},{"rank_min":3000,"unit":12.7},{"rank_min":5000,"unit":11.8},{"rank_min":10000,"unit":11.8},{"rank_min":20000,"unit":11.8},{"rank_min":20001,"unit":11.8}],"B1":[{"rank_min":1000,"unit":15},{"rank_min":3000,"unit":21.3},{"rank_min":5000,"unit":20.5},{"rank_min":10000,"unit":19.7},{"rank_min":20000,"unit":18.9},{"rank_min":20001,"unit":18.1}],"B2":[{"rank_min":1000,"unit":15},{"rank_min":3000,"unit":14.1},{"rank_min":5000,"unit":14.1},{"rank_min":10000,"unit":13.3},{"rank_min":20000,"unit":12.5},{"rank_min":20001,"unit":11.7}],"B3":[{"rank_min":1000,"unit":15},{"rank_min":3000,"unit":10.9},{"rank_min":5000,"unit":10.1},{"rank_min":10000,"unit":10.1},{"rank_min":20000,"unit":10.1},{"rank_min":20001,"unit":10.1}]}}};
+
+// ---- 発注先マスタ（社名・メールアドレスをここで編集してください） ----
+const SUPPLIERS = [
+  { name: '〇〇製本工業株式会社', email: 'order@example-seihon.co.jp' },
+  { name: '△△紙工社', email: 'juchu@example-shiko.co.jp' },
+  { name: '株式会社□□バインダリー', email: 'info@example-bindery.co.jp' },
+];
+
+function renderSupplierList(){
+  const wrap = document.getElementById('supplierList');
+  wrap.innerHTML = SUPPLIERS.map((s, i) => `
+    <div class="comp-row" style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+      <div>
+        <div style="font-weight:600">${s.name}</div>
+        <div class="hint" style="margin-top:2px">${s.email}</div>
+      </div>
+      <button type="button" class="add" style="width:auto;flex:0 0 auto" onclick="sendToSupplier(${i})">メールを送る</button>
+    </div>
+  `).join('');
+}
+renderSupplierList();
+
+const CUTTING_SIZES = Object.keys(MASTER.cutting);
+const THOMSON_SIZES = Object.keys(MASTER.thomson.punch);
+const SURFACE_PP_SIZES = Object.keys(MASTER.surface_pp.gloss);
+
+function fillSelect(sel, values){
+  sel.innerHTML = values.map(v => `<option value="${v}">${v}</option>`).join('');
+}
+fillSelect(document.getElementById('flSize'), CUTTING_SIZES);
+fillSelect(document.getElementById('ctSize'), CUTTING_SIZES);
+fillSelect(document.getElementById('thSize'), THOMSON_SIZES);
+fillSelect(document.getElementById('sfSize'), SURFACE_PP_SIZES);
+
+function fillFoldSizeOptions(){
+  const type = document.getElementById('flFoldType').value;
+  const sel = document.getElementById('flFoldSize');
+  if(type==='two'){ fillSelect(sel, Object.keys(MASTER.fold.twoFold)); }
+  else if(type==='three'){ fillSelect(sel, Object.keys(MASTER.fold.threeFold)); }
+  else { sel.innerHTML = '<option value="">-</option>'; }
+}
+document.getElementById('flFoldType').addEventListener('change', fillFoldSizeOptions);
+fillFoldSizeOptions();
+
+// ---- job type toggle ----
+document.querySelectorAll('input[name=jobType]').forEach(r => {
+  r.addEventListener('change', () => {
+    const v = document.querySelector('input[name=jobType]:checked').value;
+    document.getElementById('bookletSection').style.display = v==='booklet' ? '' : 'none';
+    document.getElementById('flatSection').style.display = v==='flat' ? '' : 'none';
+  });
+});
+
+// ---- addon toggles ----
+function wireAddon(toggleId, checkboxId, bodyId){
+  const cb = document.getElementById(checkboxId);
+  const body = document.getElementById(bodyId);
+  const toggle = document.getElementById(toggleId);
+  function sync(){ body.classList.toggle('open', cb.checked); }
+  toggle.addEventListener('click', (e) => { if(e.target !== cb){ cb.checked = !cb.checked; } sync(); });
+  cb.addEventListener('change', sync);
+  sync();
+}
+wireAddon('toggleThomson','enableThomson','bodyThomson');
+wireAddon('toggleSurface','enableSurface','bodySurface');
+wireAddon('toggleCutting','enableCutting','bodyCutting');
+
+document.getElementById('sfType').addEventListener('change', () => {
+  const isPress = document.getElementById('sfType').value === 'press';
+  document.getElementById('sfDoubleField').style.display = isPress ? 'none' : '';
+  document.getElementById('sfThinField').style.display = isPress ? '' : 'none';
+});
+
+document.getElementById('bkPunch').addEventListener('change', (e) => {
+  document.getElementById('punchBandField').style.display = e.target.checked ? '' : 'none';
+});
+document.getElementById('bkBind').addEventListener('change', (e) => {
+  document.getElementById('endpaperField').style.display = e.target.value==='perfect' ? '' : 'none';
+});
+
+// ---- component rows (booklet) ----
+let compCounter = 0;
+function addComponentRow(name, pages, sets){
+  compCounter++;
+  const id = 'comp'+compCounter;
+  const div = document.createElement('div');
+  div.className = 'comp-row';
+  div.id = id;
+  div.innerHTML = `
+    <button type="button" class="del" onclick="document.getElementById('${id}').remove()">削除</button>
+    <div class="row">
+      <div class="field"><label>部品名</label><input type="text" class="c-name" value="${name}"></div>
+      <div class="field"><label>頁数（1台あたり）</label>
+        <select class="c-pages">
+          <option value="32">32P</option>
+          <option value="16" selected>16P</option>
+          <option value="8">8P</option>
+          <option value="4">4P</option>
+          <option value="2">2P</option>
+        </select>
+      </div>
+      <div class="field"><label>台数</label><input type="number" class="c-sets" value="${sets}" min="1"></div>
+    </div>`;
+  document.getElementById('compList').appendChild(div);
+  if(pages) div.querySelector('.c-pages').value = String(pages);
+}
+document.getElementById('addComp').addEventListener('click', () => addComponentRow('本文', 16, 1));
+addComponentRow('表紙', 4, 1);
+addComponentRow('本文', 16, 4);
+
+// ---- 見積書 初期値（発行日・見積番号） ----
+(function initQuoteMeta(){
+  const today = new Date();
+  const y = today.getFullYear(), m = String(today.getMonth()+1).padStart(2,'0'), d = String(today.getDate()).padStart(2,'0');
+  document.getElementById('issueDate').value = `${y}-${m}-${d}`;
+  const rand = String(Math.floor(Math.random()*9000)+1000);
+  document.getElementById('quoteNo').value = `${y}${m}${d}-${rand}`;
+})();
+
+// ---- calculation helpers ----
+let belowMinWarnings = [];
+let lastCalc = null;
+function findRankRow(rows, qty, label){
+  // 各行の rank_min は「◯◯以下」の上限を表す（最終行のみ「◯◯以上」の下限）。
+  // そのため、数量以上となる最小の rank_min を持つ行を採用する。
+  if(rows.length && qty < rows[0].rank_min){
+    belowMinWarnings.push(`${label||'この工程'}：入力部数（${qty.toLocaleString()}）がマスタの最小数量帯（${rows[0].rank_min.toLocaleString()}）を下回っています。最小ランクの単価で概算していますが、実際の外注価格と乖離する可能性があります（2026年6-8月の実例：タマユラ社12,500部・輪転無線綴じ／ケシオン様20,000～23,000部・輪転中綴じ等で最小ランク未満の発注を確認）。`);
+  }
+  for(const row of rows){
+    if(qty <= row.rank_min) return row;
+  }
+  return rows[rows.length-1];
+}
+function pageBucketKey(pages){
+  if(pages <= 2) return 'p2';
+  if(pages <= 4) return 'p4';
+  if(pages <= 8) return 'p8';
+  if(pages <= 16) return 'p16';
+  return 'p32';
+}
+function yen(n){ return '¥' + Math.round(n).toLocaleString(); }
+
+function calcBooklet(qty){
+  const size = document.getElementById('bkSize').value;
+  const bind = document.getElementById('bkBind').value; // saddle / perfect
+  const press = document.getElementById('bkPress').value; // sheet / web
+  const tableKey = (press==='sheet'?'sheet_':'web_') + bind;
+  const table = MASTER.binding[tableKey];
+  const sizeRows = table[size];
+  if(!sizeRows || sizeRows.length===0){
+    return {error:'選択した仕上りサイズ区分は製本単価マスタに存在しません。'};
+  }
+  const row = findRankRow(sizeRows, qty, '製本・綴じ');
+  const lines = [];
+  lines.push({label:'基本セット料（案件につき1回）', qtyLabel:'-', unit:row.base, amount:row.base});
+
+  const compRows = document.querySelectorAll('#compList .comp-row');
+  if(compRows.length===0) return {error:'台構成を1件以上追加してください。'};
+  let totalSets = 0;
+  compRows.forEach(div => {
+    const name = div.querySelector('.c-name').value || '部品';
+    const pages = parseInt(div.querySelector('.c-pages').value, 10);
+    const sets = parseFloat(div.querySelector('.c-sets').value) || 0;
+    totalSets += sets;
+    const key = pageBucketKey(pages);
+    const unit = row[key] || 0;
+    const amount = unit * sets * qty;
+    lines.push({label:`${name}（${pages}P区分・${sets}台）`, qtyLabel:`${sets}台×${qty.toLocaleString()}部`, unit, amount});
+  });
+
+  if(bind==='saddle'){
+    const unit = row.saddle2 || 0;
+    lines.push({label:'中とじ（2ヶ所）', qtyLabel:`${qty.toLocaleString()}部`, unit, amount:unit*qty});
+  } else {
+    const bands = [
+      [5,'perfect_upto5','5台迄'],[10,'perfect_upto10','～10台'],[15,'perfect_upto15','～15台'],
+      [20,'perfect_upto20','～20台'],[30,'perfect_upto30','～30台'],[35,'perfect_upto35','～35台'],
+      [40,'perfect_upto40','～40台'],[Infinity,'perfect_upto45','～45台']
+    ];
+    let picked = bands[bands.length-1];
+    for(const b of bands){ if(totalSets <= b[0]){ picked = b; break; } }
+    const unit = row[picked[1]] || 0;
+    lines.push({label:`無線綴じ・表紙くるみ・包装（総台数${totalSets}台／${picked[2]}）`, qtyLabel:`${qty.toLocaleString()}部`, unit, amount:unit*qty});
+    if(document.getElementById('bkEndpaper').checked){
+      const u = row.endpaper || 0;
+      lines.push({label:'見返し', qtyLabel:`${qty.toLocaleString()}部`, unit:u, amount:u*qty});
+    }
+  }
+  if(document.getElementById('bkPunch').checked){
+    const bandMap = {'1_2':'punch1_2','3_4':'punch3_4','5_6':'punch5_6','7up':'punch7up'};
+    const bandLabelMap = {'1_2':'1～2台','3_4':'3～4台','5_6':'5～6台','7up':'7台以上'};
+    const bandVal = document.getElementById('bkPunchBand').value;
+    const unit = row[bandMap[bandVal]] || 0;
+    lines.push({label:`穴明け（${bandLabelMap[bandVal]}）`, qtyLabel:`${qty.toLocaleString()}部`, unit, amount:unit*qty});
+  }
+  const total = lines.reduce((s,l)=>s+l.amount, 0);
+  return {lines, total, sectionLabel:'製本・綴じ代'};
+}
+
+function calcFlat(qty){
+  const size = document.getElementById('flSize').value;
+  const thick = document.getElementById('flThick').checked;
+  const rows = MASTER.cutting[size];
+  const row = findRankRow(rows, qty, '仕上断裁');
+  let unit = row.unit; if(thick) unit *= 1.3;
+  const lines = [{label:`仕上断裁${thick?'（135kg以上30%増）':''}`, qtyLabel:`${qty.toLocaleString()}枚`, unit, amount: row.set + unit*qty, note:`セット料${yen(row.set)}含む`}];
+
+  const foldType = document.getElementById('flFoldType').value;
+  if(foldType !== 'none'){
+    const foldTable = foldType==='two' ? MASTER.fold.twoFold : MASTER.fold.threeFold;
+    const foldSize = document.getElementById('flFoldSize').value;
+    const foldRows = foldTable[foldSize];
+    if(foldRows){
+      const frow = findRankRow(foldRows, qty);
+      lines.push({label:(foldType==='two'?'2つ折':'3つ折'), qtyLabel:`${qty.toLocaleString()}枚`, unit:frow.unit, amount: frow.set + frow.unit*qty, note:`セット料${yen(frow.set)}含む`});
+    }
+  }
+  const total = lines.reduce((s,l)=>s+l.amount,0);
+  return {lines, total, sectionLabel:'断裁・折り代'};
+}
+
+function calcThomsonAddon(defaultQty){
+  const type = document.getElementById('thType').value;
+  const size = document.getElementById('thSize').value;
+  const qtyInput = document.getElementById('thQty').value;
+  const qty = qtyInput ? parseFloat(qtyInput) : defaultQty;
+  const sets = parseFloat(document.getElementById('thSets').value) || 2;
+  const rows = MASTER.thomson[type][size];
+  const row = findRankRow(rows, qty, 'トムソン加工');
+  let prep = row.prep;
+  if(sets > 2) prep += 450 * (sets - 2);
+  const amount = prep + row.unit * qty;
+  return {lines:[{label:(type==='punch'?'トムソン抜き':'トムソン（ミシン）'), qtyLabel:`${qty.toLocaleString()}枚`, unit:row.unit, amount, note:`準備代${yen(prep)}含む（${sets}丁）`}], total:amount, sectionLabel:'特殊加工（トムソン）'};
+}
+
+function calcSurfaceAddon(defaultQty){
+  const type = document.getElementById('sfType').value;
+  const size = document.getElementById('sfSize').value;
+  const qtyInput = document.getElementById('sfQty').value;
+  const qty = qtyInput ? parseFloat(qtyInput) : defaultQty;
+  let label, unit, amount, note='';
+  if(type==='press'){
+    const rows = MASTER.surface_press.vinyl[size];
+    const row = findRankRow(rows, qty, '表面加工');
+    unit = row.unit;
+    if(document.getElementById('sfThin').checked) unit *= 1.35;
+    amount = unit * qty;
+    label = 'プレスコート（ビニール引き貼り）';
+  } else {
+    const rows = MASTER.surface_pp[type][size];
+    const row = findRankRow(rows, qty, '表面加工');
+    unit = row.unit;
+    amount = unit * qty;
+    if(document.getElementById('sfDouble').checked){ amount *= 2; note = '両面加工のため2倍'; }
+    label = (type==='gloss' ? 'PP貼り（グロス）' : 'マットPP貼り');
+  }
+  return {lines:[{label, qtyLabel:`${qty.toLocaleString()}枚`, unit, amount, note}], total:amount, sectionLabel:'表面加工'};
+}
+
+function calcCuttingAddon(defaultQty){
+  const size = document.getElementById('ctSize').value;
+  const qtyInput = document.getElementById('ctQty').value;
+  const qty = qtyInput ? parseFloat(qtyInput) : defaultQty;
+  const thick = document.getElementById('ctThick').checked;
+  const rows = MASTER.cutting[size];
+  const row = findRankRow(rows, qty, '断裁（追加）');
+  let unit = row.unit; if(thick) unit *= 1.3;
+  const amount = row.set + unit*qty;
+  return {lines:[{label:`仕上断裁${thick?'（135kg以上30%増）':''}`, qtyLabel:`${qty.toLocaleString()}枚`, unit, amount, note:`セット料${yen(row.set)}含む`}], total:amount, sectionLabel:'断裁'};
+}
+
+function buildSpecSummary(jobType, qty){
+  const rows = [];
+  rows.push(['部数', `${qty.toLocaleString()} 部`]);
+  if(jobType === 'booklet'){
+    const size = document.getElementById('bkSize').value;
+    const bind = document.getElementById('bkBind').value === 'saddle' ? '中綴じ' : '無線綴じ';
+    const press = document.getElementById('bkPress').value === 'sheet' ? '枚葉' : '輪転';
+    let totalPages = 0;
+    document.querySelectorAll('#compList .comp-row').forEach(div => {
+      const pages = parseInt(div.querySelector('.c-pages').value, 10) || 0;
+      const sets = parseFloat(div.querySelector('.c-sets').value) || 0;
+      totalPages += pages * sets;
+    });
+    rows.push(['仕様', `冊子（ページ物）`]);
+    rows.push(['仕上りサイズ', size]);
+    rows.push(['印刷方式／綴じ方式', `${press}／${bind}`]);
+    if(totalPages) rows.push(['総頁数（目安）', `${totalPages} P`]);
+  } else {
+    const size = document.getElementById('flSize').value;
+    const foldType = document.getElementById('flFoldType').value;
+    const foldLabel = foldType==='none' ? '折りなし' : (foldType==='two' ? '2つ折' : '3つ折');
+    rows.push(['仕様', 'ペラ物・折り物（綴じなし）']);
+    rows.push(['仕上りサイズ', size]);
+    rows.push(['折り', foldLabel]);
+  }
+  return rows;
+}
+
+document.getElementById('calcBtn').addEventListener('click', () => {
+  belowMinWarnings = [];
+  lastCalc = null;
+  document.getElementById('pdfArea').style.display = 'none';
+  const resultSection = document.getElementById('resultSection');
+  const body = document.getElementById('resultBody');
+  const qty = parseFloat(document.getElementById('jobQty').value);
+  if(!qty || qty <= 0){
+    resultSection.style.display = '';
+    body.innerHTML = '<div class="error">部数を入力してください。</div>';
+    return;
+  }
+  const jobType = document.querySelector('input[name=jobType]:checked').value;
+  const blocks = [];
+  const mainResult = jobType==='booklet' ? calcBooklet(qty) : calcFlat(qty);
+  if(mainResult.error){
+    resultSection.style.display = '';
+    body.innerHTML = `<div class="error">${mainResult.error}</div>`;
+    return;
+  }
+  blocks.push(mainResult);
+  if(document.getElementById('enableCutting').checked) blocks.push(calcCuttingAddon(qty));
+  if(document.getElementById('enableThomson').checked) blocks.push(calcThomsonAddon(qty));
+  if(document.getElementById('enableSurface').checked) blocks.push(calcSurfaceAddon(qty));
+
+  let html = '';
+  if(belowMinWarnings.length){
+    const uniq = [...new Set(belowMinWarnings)];
+    html += `<div class="notice">${uniq.map(w=>`⚠ ${w}`).join('<br><br>')}</div>`;
+  }
+  let grandTotal = 0;
+  blocks.forEach(block => {
+    html += `<h3>${block.sectionLabel}</h3>`;
+    html += '<table class="result"><thead><tr><th>項目</th><th>数量</th><th>単価</th><th>金額</th></tr></thead><tbody>';
+    block.lines.forEach(l => {
+      html += `<tr><td>${l.label}${l.note?`<br><span class="hint">${l.note}</span>`:''}</td><td>${l.qtyLabel}</td><td>${typeof l.unit==='number' ? '¥'+l.unit.toFixed(2) : '-'}</td><td>${yen(l.amount)}</td></tr>`;
+    });
+    html += `<tr class="sub-total-row"><td colspan="3">小計</td><td>${yen(block.total)}</td></tr>`;
+    html += '</tbody></table>';
+    grandTotal += block.total;
+  });
+
+  const marginOn = document.getElementById('enableMargin').checked;
+  const marginRate = parseFloat(document.getElementById('marginRate').value) || 0;
+  let margin = 0, withMargin = grandTotal;
+  html += `<div class="grand-total">加工代合計（原価）　${yen(grandTotal)}<small>用紙代・印刷代は含みません（部数 ${qty.toLocaleString()} 部）</small></div>`;
+  if(marginOn){
+    margin = grandTotal * (marginRate/100);
+    withMargin = grandTotal + margin;
+    html += `<table class="result" style="margin-top:8px"><tbody>`;
+    html += `<tr><td>社内管理費（${marginRate}%）</td><td></td><td></td><td>${yen(margin)}</td></tr>`;
+    html += `</tbody></table>`;
+    html += `<div class="grand-total" style="border-top:2px solid var(--blue)">営業提出目安額　${yen(withMargin)}<small>加工代原価に社内管理費${marginRate}%を加算（2026年8月確認のルール）。用紙代・印刷代は未算入のため、実際の提出額とは差異が生じます。</small></div>`;
+  }
+
+  resultSection.style.display = '';
+  body.innerHTML = html;
+  resultSection.scrollIntoView({behavior:'smooth', block:'start'});
+
+  lastCalc = {
+    qty, jobType, blocks, grandTotal, marginOn, marginRate, margin, withMargin,
+    specRows: buildSpecSummary(jobType, qty)
+  };
+  document.getElementById('pdfArea').style.display = '';
+  document.getElementById('mailArea').style.display = '';
+});
+
+// ---- 発注依頼メール（Outlook on the Web） ----
+function buildSupplierSpecText(){
+  const c = lastCalc;
+  const lines = [];
+  lines.push(`件名：${document.getElementById('jobName').value || '（件名未入力）'}`);
+  lines.push('');
+  lines.push('下記仕様にて加工代のお見積をお願いいたします。');
+  lines.push('');
+  c.specRows.forEach(([k, v]) => lines.push(`${k}：${v}`));
+
+  if(c.jobType === 'booklet'){
+    const compTexts = [];
+    document.querySelectorAll('#compList .comp-row').forEach(div => {
+      const name = div.querySelector('.c-name') ? div.querySelector('.c-name').value : '';
+      const pages = div.querySelector('.c-pages').value;
+      const sets = div.querySelector('.c-sets').value;
+      compTexts.push(`${name ? name + '：' : ''}${pages}P × ${sets}台`);
+    });
+    if(compTexts.length) lines.push(`台構成：${compTexts.join(' / ')}`);
+    if(document.getElementById('bkPunch').checked){
+      const band = document.getElementById('bkPunchBand').selectedOptions[0].textContent;
+      lines.push(`穴明け：あり（${band}）`);
+    }
+    if(document.getElementById('bkEndpaper').checked) lines.push('見返し：あり');
+  }
+  if(document.getElementById('enableThomson').checked){
+    const type = document.getElementById('thType').selectedOptions[0].textContent;
+    const size = document.getElementById('thSize').value;
+    lines.push(`トムソン加工：${type}／${size}`);
+  }
+  if(document.getElementById('enableSurface').checked){
+    const type = document.getElementById('sfType').selectedOptions[0].textContent;
+    const size = document.getElementById('sfSize').value;
+    lines.push(`表面加工：${type}／${size}`);
+  }
+  if(document.getElementById('enableCutting').checked){
+    const size = document.getElementById('ctSize').value;
+    lines.push(`断裁（追加）：${size}`);
+  }
+
+  lines.push('');
+  lines.push('※本依頼は加工代のみの仕様提示であり、用紙代・印刷代・運賃等は含みません。');
+  lines.push('※ご不明点がございましたらお気軽にお問い合わせください。');
+  lines.push('');
+  lines.push('富士精版印刷株式会社　業務推進課');
+  return lines.join('\n');
+}
+
+function sendToSupplier(index){
+  if(!lastCalc){ return; }
+  const supplier = SUPPLIERS[index];
+  const subject = `【加工代見積依頼】${document.getElementById('jobName').value || '(件名未入力)'}　${lastCalc.qty.toLocaleString()}部`;
+  const body = buildSupplierSpecText();
+  const url = `https://outlook.office.com/mail/deeplink/compose?to=${encodeURIComponent(supplier.email)}&subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  window.open(url, '_blank');
+}
+
+// ---- PDF見積書 ----
+document.getElementById('makePdfBtn').addEventListener('click', () => {
+  if(!lastCalc){ return; }
+  const includeDetail = document.getElementById('pdfIncludeDetail').checked;
+
+  document.getElementById('pqNo').textContent = document.getElementById('quoteNo').value || '-';
+  const isoDate = document.getElementById('issueDate').value;
+  document.getElementById('pqDate').textContent = isoDate ? isoDate.replace(/-/g,'/') : '-';
+  document.getElementById('pqCustomer').textContent = document.getElementById('customerName').value || 'お客様';
+  document.getElementById('pqSubject').textContent = document.getElementById('jobName').value || '（未入力）';
+
+  let specHtml = '';
+  lastCalc.specRows.forEach(([k,v]) => {
+    specHtml += `<tr><td class="pq-k">${k}</td><td>${v}</td></tr>`;
+  });
+  document.getElementById('pqSpecBody').innerHTML = specHtml;
+
+  const amountLabel = document.getElementById('pqAmountLabel');
+  const amountEl = document.getElementById('pqAmount');
+  const noteEl = document.getElementById('pqAmountNote');
+  if(lastCalc.marginOn){
+    amountLabel.textContent = '御見積金額（加工代・社内管理費込み）';
+    amountEl.textContent = yen(lastCalc.withMargin);
+    noteEl.textContent = '用紙代・印刷代・運賃は別途となります。';
+  } else {
+    amountLabel.textContent = '御見積金額（加工代のみ・社内管理費は含みません）';
+    amountEl.textContent = yen(lastCalc.grandTotal);
+    noteEl.textContent = '社内管理費・用紙代・印刷代・運賃は別途となります。';
+  }
+
+  const detailWrap = document.getElementById('pqDetailWrap');
+  if(includeDetail){
+    let dh = '';
+    lastCalc.blocks.forEach(block => {
+      dh += `<table><thead><tr><th>${block.sectionLabel}</th><th>数量</th><th>単価</th><th>金額</th></tr></thead><tbody>`;
+      block.lines.forEach(l => {
+        dh += `<tr><td>${l.label}</td><td>${l.qtyLabel}</td><td>${typeof l.unit==='number' ? '¥'+l.unit.toFixed(2) : '-'}</td><td>${yen(l.amount)}</td></tr>`;
+      });
+      dh += `<tr><td colspan="3">小計</td><td>${yen(block.total)}</td></tr></tbody></table>`;
+    });
+    if(lastCalc.marginOn){
+      dh += `<table><tbody><tr><td>加工代合計（原価）</td><td></td><td></td><td>${yen(lastCalc.grandTotal)}</td></tr><tr><td>社内管理費（${lastCalc.marginRate}%）</td><td></td><td></td><td>${yen(lastCalc.margin)}</td></tr></tbody></table>`;
+    }
+    document.getElementById('pqDetailBody').innerHTML = dh;
+    detailWrap.style.display = '';
+  } else {
+    detailWrap.style.display = 'none';
+  }
+
+  window.print();
+});
+</script>
+</body>
+</html>
